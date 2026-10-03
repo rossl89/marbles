@@ -41,11 +41,18 @@ async function loadLiveF1(){
     const r=await fetch("/api/f1"); if(!r.ok) throw new Error("HTTP "+r.status);
     const d=await r.json(), ev=DATA.find(x=>x.id==="f1"), market=ev.markets[0];
     market.entries=d.drivers.map(x=>[String(x.number),x.name,x.multiplier]);
-    ev.event="Bahrain GP in Malaysia · pre-event model";
-    ev.lock="FP1 — market now locked";
+    if(d.marketReady){
+      ev.event="Singapore Grand Prix · live market";
+      ev.lock="Fri 9 Oct · FP1 16:30 SGT";
+      ev.liveOpen=true;
+    }else{
+      ev.event="Bahrain GP in Malaysia · pre-event model";
+      ev.lock="FP1 — market now locked";
+      ev.liveOpen=false;
+    }
     render();
     const note=document.querySelector(".section .small");
-    if(note) note.textContent="Live Scoring Engine "+d.engine+" · 2026 history through Round "+d.throughRound+" · current-weekend sessions excluded.";
+    if(note) note.textContent="Live Scoring Engine "+d.engine+" · 2026 history through Round "+d.throughRound+" · next market Round "+d.targetRound+" · partial current-weekend sessions excluded.";
   }catch(e){console.warn("Live F1 pricing unavailable; retaining prototype fallback",e)}
 }
 document.querySelectorAll("nav button").forEach(b=>b.onclick=()=>{document.querySelectorAll("nav button,.page").forEach(x=>x.classList.remove("on"));b.classList.add("on");document.getElementById(b.dataset.page).classList.add("on");scrollTo(0,0)});render();loadLiveF1();
