@@ -62,12 +62,12 @@ nav{top:0;padding:9px 0;background:#070809ed;backdrop-filter:blur(18px);border-c
 @media(max-width:800px){.landing .explain{min-height:92vh;padding:55px 0}.landing .explainHead .eyebrow{font-size:21px}.landing .explainHead h2{font-size:40px}.landing .explain>.card{text-align:left}}
 
 /* Guest landing hero photography */
-.landingHeroPhoto{position:absolute;inset:0;background:linear-gradient(90deg,rgba(7,8,9,.97) 0%,rgba(7,8,9,.78) 48%,rgba(7,8,9,.42) 100%),linear-gradient(0deg,#070809 0%,transparent 35%),url("https://images.unsplash.com/photo-1697271380406-2410e38991b3?auto=format&fit=crop&fm=jpg&q=82&w=2400") center 58%/cover no-repeat;z-index:-1}
-#landing>section:first-child{position:relative;isolation:isolate;width:auto;max-width:none!important;margin-left:calc(-1 * clamp(22px,4vw,72px));margin-right:calc(-1 * clamp(22px,4vw,72px));padding-left:clamp(22px,4vw,72px)!important;padding-right:clamp(22px,4vw,72px)!important;min-height:calc(100vh - 72px);display:flex;flex-direction:column;justify-content:center}
+.landingHeroPhoto{position:absolute;top:0;bottom:0;left:50%;width:100vw;transform:translateX(-50%);background:linear-gradient(90deg,rgba(7,8,9,.97) 0%,rgba(7,8,9,.78) 48%,rgba(7,8,9,.42) 100%),linear-gradient(0deg,#070809 0%,transparent 35%),url("https://images.unsplash.com/photo-1697271380406-2410e38991b3?auto=format&fit=crop&fm=jpg&q=82&w=2400") center 58%/cover no-repeat;z-index:-1}
+.landingHeroSection{position:relative;isolation:isolate;width:auto;max-width:none!important;margin-left:calc(-1 * clamp(22px,4vw,72px));margin-right:calc(-1 * clamp(22px,4vw,72px));padding-left:clamp(22px,4vw,72px)!important;padding-right:clamp(22px,4vw,72px)!important;min-height:calc(100vh - 72px);display:flex;flex-direction:column;justify-content:center}
 body.guestMode header{position:absolute;left:clamp(22px,4vw,72px);right:clamp(22px,4vw,72px);top:0;z-index:30;border-bottom-color:#ffffff24}
 body.guestMode nav{display:none}
 body.guestMode .wrap{padding-top:72px}
-@media(max-width:700px){#landing>section:first-child{margin-left:-14px;margin-right:-14px;padding-left:14px!important;padding-right:14px!important;min-height:72vh}.landingHeroPhoto{background-position:62% center}body.guestMode header{left:14px;right:14px}body.guestMode .wrap{padding-top:62px}}
+@media(max-width:700px){.landingHeroSection{width:auto;margin-left:-14px;margin-right:-14px;padding-left:14px!important;padding-right:14px!important;min-height:calc(100vh - 62px)}.landingHeroPhoto{background-position:62% center}body.guestMode header{left:14px;right:14px}body.guestMode .wrap{padding-top:62px}}
 
 
 
@@ -89,7 +89,7 @@ body.guestMode .wrap{padding-top:72px}
 .knowledgeFinal .eyebrow{font-size:18px;color:var(--red)}
 .knowledgeFinal h2{font-size:clamp(48px,7vw,92px);line-height:.92;letter-spacing:-.065em;margin:12px auto 22px;max-width:1050px}
 .knowledgeFinal p{font-size:18px;line-height:1.6;color:#a2a9b2;max-width:680px;margin:0 auto 28px}
-@media(max-width:700px){#landing>section:first-child{width:auto;margin-left:-14px;margin-right:-14px;padding-left:14px!important;padding-right:14px!important;min-height:calc(100vh - 62px)}.storyTrack{top:72vh;height:3600px;opacity:.48}.trackShadow{stroke-width:58}.trackKerb,.trackKerbRed{stroke-width:41;stroke-dasharray:11 11}.trackKerbRed{stroke-dashoffset:11}.trackTarmac{stroke-width:33}.knowledgeFinal{padding:85px 8px 105px}.knowledgeFinal p{font-size:16px}}
+@media(max-width:700px){.landingHeroSection{position:relative;isolation:isolate;width:auto;max-width:none!important;margin-left:calc(-1 * clamp(22px,4vw,72px));margin-right:calc(-1 * clamp(22px,4vw,72px));padding-left:clamp(22px,4vw,72px)!important;padding-right:clamp(22px,4vw,72px)!important;min-height:calc(100vh - 72px);display:flex;flex-direction:column;justify-content:center}.storyTrack{top:72vh;height:3600px;opacity:.48}.trackShadow{stroke-width:58}.trackKerb,.trackKerbRed{stroke-width:41;stroke-dasharray:11 11}.trackKerbRed{stroke-dashoffset:11}.trackTarmac{stroke-width:33}.knowledgeFinal{padding:85px 8px 105px}.knowledgeFinal p{font-size:16px}}
 </style><script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script></head><body><div class="wrap">
 <header><div class="brand"><img class="brandLogo" src="/marbles-logo-white-transparent.png" alt="MARBLES"></div><div class="small">BETA · 2026</div><div id="account" style="display:flex;gap:8px;align-items:center"><button class="ghost" id="authBtn">SIGN IN</button></div></header>
 <nav><button class="on" data-page="weekend">Weekend</button><button data-page="picks">My Picks</button><button data-page="standings">Standings</button><button data-page="how">How to Play</button></nav>
@@ -101,7 +101,7 @@ body.guestMode .wrap{padding-top:72px}
 <path class="trackTarmac" d="M510 0 C510 220 760 280 760 520 S235 760 245 1060 S790 1320 755 1640 S205 1900 275 2240 S820 2510 730 2820 S260 3100 315 3420 S650 3700 505 4000"/>
 <path class="trackCentre" d="M510 0 C510 220 760 280 760 520 S235 760 245 1060 S790 1320 755 1640 S205 1900 275 2240 S820 2510 730 2820 S260 3100 315 3420 S650 3700 505 4000"/>
 </svg></div>
-<section style="padding:54px 0 34px;max-width:900px"><div class="landingHeroPhoto" aria-hidden="true"></div>
+<section class="landingHeroSection" style="padding:54px 0 34px"><div class="landingHeroPhoto" aria-hidden="true"></div>
   <div class="eyebrow">MARBLES</div>
   <h1 style="font-size:clamp(48px,7vw,86px);line-height:.95;letter-spacing:-.06em;margin:10px 0 20px">A MOTORSPORT PREDICTION GAME.</h1>
   <p style="font-size:18px;line-height:1.6;color:#a2a9b2;max-width:720px">Make picks across the motorsport taking place each weekend. The better your picks perform, and the harder they were to predict, the more points you score.</p>
