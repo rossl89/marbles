@@ -69,18 +69,35 @@ body.guestMode nav{display:none}
 body.guestMode .wrap{padding-top:72px}
 @media(max-width:700px){#landing>section:first-child{margin-left:-14px;margin-right:-14px;padding-left:14px!important;padding-right:14px!important;min-height:72vh}.landingHeroPhoto{background-position:62% center}body.guestMode header{left:14px;right:14px}body.guestMode .wrap{padding-top:62px}}
 
-/* Rubber marbles between landing stages */
-.marbleFall{position:absolute;inset:-24vh 0 0;pointer-events:none;overflow:hidden;z-index:3}
-.rubberMarble{--x:50%;--dx:0px;--r:12px;position:absolute;left:var(--x);top:0;width:var(--r);height:var(--r);border-radius:43% 57% 49% 51%;background:radial-gradient(circle at 30% 24%,#d6d6d2 0 5%,#8b8d8c 10%,#4c4e4f 28%,#202224 58%,#08090a 100%);border:1px solid #8d909255;box-shadow:0 0 8px #fff4,inset -3px -4px 5px #000b,0 5px 8px #000c;opacity:0;transform:translate(-50%,-100px) rotate(0) scale(.7)}
-.explain.marblePlay .rubberMarble{animation:marbleDrop 1.45s cubic-bezier(.18,.72,.22,1) forwards}
-.explain.marblePlay .rubberMarble:nth-child(2){animation-delay:.045s}.explain.marblePlay .rubberMarble:nth-child(3){animation-delay:.11s}.explain.marblePlay .rubberMarble:nth-child(4){animation-delay:.16s}.explain.marblePlay .rubberMarble:nth-child(5){animation-delay:.23s}.explain.marblePlay .rubberMarble:nth-child(6){animation-delay:.29s}.explain.marblePlay .rubberMarble:nth-child(7){animation-delay:.35s}
-@keyframes marbleDrop{0%{opacity:0;transform:translate(-50%,-110px) rotate(0) scale(.65)}7%{opacity:1}45%{opacity:1;transform:translate(calc(-50% + var(--dx)*.35),24vh) rotate(500deg) scale(1)}55%{transform:translate(calc(-50% + var(--dx)*.6),14vh) rotate(650deg)}65%{transform:translate(calc(-50% + var(--dx)),24vh) rotate(800deg)}74%{transform:translate(calc(-50% + var(--dx)*1.45),18vh) rotate(940deg)}83%{transform:translate(calc(-50% + var(--dx)*2.05),24vh) rotate(1080deg)}91%{transform:translate(calc(-50% + var(--dx)*2.7),21.5vh) rotate(1170deg)}100%{opacity:.9;transform:translate(calc(-50% + var(--dx)*3.5),24vh) rotate(1280deg)}}
-@media(max-width:700px){.rubberMarble{--r:10px}.marbleFall{inset:-18vh 0 0}}
-@media(prefers-reduced-motion:reduce){.marbleFall{display:none}}
-</style><script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script></head><body><div class="wrap">
+
+
+/* Landing-page circuit linking the story */
+#landing{position:relative}
+.storyTrack{position:absolute;left:0;right:0;top:78vh;bottom:190px;pointer-events:none;z-index:0;overflow:hidden;opacity:.9}
+.storyTrack svg{width:100%;height:100%;overflow:visible}
+.trackShadow{fill:none;stroke:#000;stroke-width:34;stroke-linecap:round;stroke-linejoin:round;opacity:.8}
+.trackKerb{fill:none;stroke:#f4f4f2;stroke-width:28;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:34 34}
+.trackKerbRed{fill:none;stroke:var(--red);stroke-width:28;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:34 34;stroke-dashoffset:34}
+.trackTarmac{fill:none;stroke:#2d3035;stroke-width:19;stroke-linecap:round;stroke-linejoin:round}
+.trackCentre{fill:none;stroke:#ffffff14;stroke-width:1;stroke-dasharray:8 18}
+.landing .explain,.landingFinal,.seriesStrip{position:relative;z-index:1}
+.landing .explain:before,.landing .explain:after{display:none!important}
+.knowledgeFinal{position:relative;z-index:2;text-align:center;padding:110px 20px 130px;border-top:1px solid var(--line);background:linear-gradient(180deg,#07080900,#070809 22%)}
+.knowledgeFinal .eyebrow{font-size:18px;color:var(--red)}
+.knowledgeFinal h2{font-size:clamp(48px,7vw,92px);line-height:.92;letter-spacing:-.065em;margin:12px auto 22px;max-width:1050px}
+.knowledgeFinal p{font-size:18px;line-height:1.6;color:#a2a9b2;max-width:680px;margin:0 auto 28px}
+@media(max-width:700px){.storyTrack{top:72vh;bottom:150px;opacity:.72}.trackShadow{stroke-width:27}.trackKerb,.trackKerbRed{stroke-width:22;stroke-dasharray:25 25}.trackKerbRed{stroke-dashoffset:25}.trackTarmac{stroke-width:15}.knowledgeFinal{padding:85px 8px 105px}.knowledgeFinal p{font-size:16px}}
+"https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script></head><body><div class="wrap">
 <header><div class="brand"><img class="brandLogo" src="/marbles-logo-white-transparent.png" alt="MARBLES"></div><div class="small">BETA · 2026</div><div id="account" style="display:flex;gap:8px;align-items:center"><button class="ghost" id="authBtn">SIGN IN</button></div></header>
 <nav><button class="on" data-page="weekend">Weekend</button><button data-page="picks">My Picks</button><button data-page="standings">Standings</button><button data-page="how">How to Play</button></nav>
 <main id="landing" class="landing">
+<div class="storyTrack" aria-hidden="true"><svg viewBox="0 0 1000 4000" preserveAspectRatio="none">
+<path class="trackShadow" d="M510 0 C510 220 760 280 760 520 S235 760 245 1060 S790 1320 755 1640 S205 1900 275 2240 S820 2510 730 2820 S260 3100 315 3420 S650 3700 505 4000"/>
+<path class="trackKerb" d="M510 0 C510 220 760 280 760 520 S235 760 245 1060 S790 1320 755 1640 S205 1900 275 2240 S820 2510 730 2820 S260 3100 315 3420 S650 3700 505 4000"/>
+<path class="trackKerbRed" d="M510 0 C510 220 760 280 760 520 S235 760 245 1060 S790 1320 755 1640 S205 1900 275 2240 S820 2510 730 2820 S260 3100 315 3420 S650 3700 505 4000"/>
+<path class="trackTarmac" d="M510 0 C510 220 760 280 760 520 S235 760 245 1060 S790 1320 755 1640 S205 1900 275 2240 S820 2510 730 2820 S260 3100 315 3420 S650 3700 505 4000"/>
+<path class="trackCentre" d="M510 0 C510 220 760 280 760 520 S235 760 245 1060 S790 1320 755 1640 S205 1900 275 2240 S820 2510 730 2820 S260 3100 315 3420 S650 3700 505 4000"/>
+</svg></div>
 <section style="padding:54px 0 34px;max-width:900px"><div class="landingHeroPhoto" aria-hidden="true"></div>
   <div class="eyebrow">MARBLES</div>
   <h1 style="font-size:clamp(48px,7vw,86px);line-height:.95;letter-spacing:-.06em;margin:10px 0 20px">A MOTORSPORT PREDICTION GAME.</h1>
@@ -109,6 +126,12 @@ body.guestMode .wrap{padding-top:72px}
 </section>
 
 <section class="landingFinal"><h2>THAT'S IT.</h2><p style="font-size:17px;color:#a2a9b2;max-width:650px;margin:0 auto 24px;line-height:1.6">Make your weekend picks. Choose your best three for Overall. Score points based on the result and multiplier.</p><button class="cta" id="landingJoin2">CREATE ACCOUNT</button></section>
+<section class="knowledgeFinal">
+  <div class="eyebrow">THE CHALLENGE</div>
+  <h2>PROVE YOUR MOTORSPORT KNOWLEDGE.</h2>
+  <p>Compete across the season against other fans. Read the form, find the value and see who really knows motorsport best.</p>
+  <button class="cta" id="landingJoin3">CREATE ACCOUNT</button>
+</section>
 </main><div id="appShell" class="appShell"><section id="weekend" class="page on"><div class="weekendBar"><div class="weekStat"><div class="eyebrow"><span class="liveDot">●</span> CROSS-MOTORSPORT WEEKEND</div><strong>PICK ACROSS EVERY SERIES RACING</strong></div><div class="weekStat"><div class="small">OVERALL</div><strong id="topOverall">0 / 3</strong></div><div class="weekStat"><div class="small">DRS</div><strong id="topDrs">5 LEFT</strong></div><div class="weekStat"><div class="small">SEASON</div><strong>2026</strong></div></div>
 <div class="hero"><div class="eyebrow">One game · multiple motorsport championships</div><h1>ONE WEEKEND.<br>MULTIPLE SERIES.<br>YOUR CALL.</h1><p><b style="color:#fff">MARBLES is a cross-motorsport prediction game.</b><br><br>F1, endurance racing, British GT and more all feed into one competition. Make picks in the championships you follow, find competitors the MARBLES model may be undervaluing, then nominate your best three predictions for the Overall Championship.<br><br><span style="color:#fff">Not another single-series fantasy team. Your motorsport knowledge is the team.</span></p><div class="rule"></div></div>
 <div class="summary"><div class="card"><div class="eyebrow">Overall Championship</div><h2>Choose your three</h2><div class="small" id="count">0 / 3 Overall picks</div><div class="slots" id="slots"></div></div><div class="card"><div class="eyebrow">DRS</div><div class="drs"><span id="drs">5</span><span class="small"> / 5 left</span></div><p class="small">Add +0.30× to one pick. Five uses per season.</p></div></div>
@@ -128,23 +151,7 @@ function openAuth(mode="signin"){authMode=mode;document.getElementById("authModa
 function syncAuthModal(){let up=authMode==="signup";document.getElementById("authTitle").textContent=up?"Create your MARBLES account":"Welcome back";document.getElementById("authSubmit").textContent=up?"CREATE ACCOUNT":"SIGN IN";document.getElementById("tabIn").classList.toggle("on",!up);document.getElementById("tabUp").classList.toggle("on",up);document.querySelectorAll(".signupOnly").forEach(x=>x.style.display=up?"grid":"none");document.getElementById("authPassword").autocomplete=up?"new-password":"current-password";document.getElementById("authMsg").textContent=""}
 async function authUI(){const {data:{session}}=await sb.auth.getSession();currentUser=session?.user||null;const b=document.getElementById("authBtn");if(!currentUser){document.body.classList.add("guestMode");b.textContent="SIGN IN";b.onclick=()=>openAuth("signin");document.getElementById("landing").classList.add("on");document.getElementById("appShell").classList.add("guest");return}document.body.classList.remove("guestMode");document.getElementById("landing").classList.remove("on");document.getElementById("appShell").classList.remove("guest");let {data:pr}=await sb.rpc("get_my_profile");let p=pr?.[0];b.textContent=p?.username||p?.display_name||"MY ACCOUNT";document.getElementById("profileEmail").textContent=currentUser.email||"";document.getElementById("profileUsernameText").textContent=p?.username||p?.display_name||"Not set";b.onclick=()=>document.getElementById("profileCard").classList.toggle("on")}
 
-/* Landing rubber-marble transition */
-const marbleSections=[...document.querySelectorAll("#landing .explain")];
-marbleSections.forEach((section,i)=>{
-  if(i===0)return;
-  const layer=document.createElement("div");layer.className="marbleFall";layer.setAttribute("aria-hidden","true");
-  const specs=[["38%","-72px","10px"],["43%","46px","15px"],["47%","-34px","8px"],["50%","82px","13px"],["53%","-58px","11px"],["57%","62px","8px"],["62%","-45px","12px"]];
-  specs.forEach(s=>{const m=document.createElement("i");m.className="rubberMarble";m.style.setProperty("--x",s[0]);m.style.setProperty("--dx",s[1]);m.style.setProperty("--r",s[2]);layer.appendChild(m)});
-  section.prepend(layer);
-});
-if("IntersectionObserver" in window&&!matchMedia("(prefers-reduced-motion: reduce)").matches){
-  const marbleObserver=new IntersectionObserver(entries=>entries.forEach(entry=>{
-    if(entry.isIntersecting&&!entry.target.dataset.marblePlayed){entry.target.dataset.marblePlayed="1";entry.target.classList.add("marblePlay")}
-  }),{threshold:.08,rootMargin:"0px 0px -68% 0px"});
-  marbleSections.slice(1).forEach(s=>marbleObserver.observe(s));
-}
-
-const revealTargets=document.querySelectorAll("#landing .explain,#landing .landingFinal");if("IntersectionObserver" in window){const revealObserver=new IntersectionObserver(entries=>{entries.forEach(entry=>{if(entry.isIntersecting)entry.target.classList.add("reveal")})},{threshold:.22,rootMargin:"0px 0px -8% 0px"});revealTargets.forEach(el=>revealObserver.observe(el))}else revealTargets.forEach(el=>el.classList.add("reveal"));document.getElementById("landingJoin").onclick=()=>openAuth("signup");document.getElementById("landingJoin2").onclick=()=>openAuth("signup");document.getElementById("landingSignIn").onclick=()=>openAuth("signin");document.getElementById("tabIn").onclick=()=>{authMode="signin";syncAuthModal()};document.getElementById("tabUp").onclick=()=>{authMode="signup";syncAuthModal()};document.getElementById("authClose").onclick=()=>document.getElementById("authModal").classList.remove("on");
+const revealTargets=document.querySelectorAll("#landing .explain,#landing .landingFinal,#landing .knowledgeFinal");if("IntersectionObserver" in window){const revealObserver=new IntersectionObserver(entries=>{entries.forEach(entry=>{if(entry.isIntersecting)entry.target.classList.add("reveal")})},{threshold:.22,rootMargin:"0px 0px -8% 0px"});revealTargets.forEach(el=>revealObserver.observe(el))}else revealTargets.forEach(el=>el.classList.add("reveal"));document.getElementById("landingJoin").onclick=()=>openAuth("signup");document.getElementById("landingJoin2").onclick=()=>openAuth("signup");document.getElementById("landingJoin3").onclick=()=>openAuth("signup");document.getElementById("landingSignIn").onclick=()=>openAuth("signin");document.getElementById("tabIn").onclick=()=>{authMode="signin";syncAuthModal()};document.getElementById("tabUp").onclick=()=>{authMode="signup";syncAuthModal()};document.getElementById("authClose").onclick=()=>document.getElementById("authModal").classList.remove("on");
 document.getElementById("authForm").onsubmit=async e=>{e.preventDefault();const email=document.getElementById("authEmail").value.trim(),password=document.getElementById("authPassword").value,msg=document.getElementById("authMsg");msg.textContent="Working…";if(authMode==="signup"){const username=document.getElementById("authUsername").value.trim();if(username.length<3){msg.textContent="Username must be at least 3 characters.";return}const {data,error}=await sb.auth.signUp({email,password,options:{data:{username,display_name:username},emailRedirectTo:location.origin}});if(error){msg.textContent=error.message;return}if(data.session){await sb.rpc("update_my_profile",{p_username:username});location.reload()}else msg.textContent="Account created. Check your email to confirm it, then return here to sign in."}else{const {error}=await sb.auth.signInWithPassword({email,password});if(error){msg.textContent=error.message;return}location.reload()}};
 document.getElementById("signOut").onclick=async()=>{await sb.auth.signOut();location.reload()};document.getElementById("editUsername").onclick=async()=>{const current=document.getElementById("profileUsernameText").textContent;const username=prompt("Change MARBLES username",current)?.trim();if(!username)return;if(username.length<3)return alert("Username must be at least 3 characters.");const {error}=await sb.rpc("update_my_profile",{p_username:username});if(error)return alert(error.message);await sb.auth.updateUser({data:{display_name:username}});location.reload()};
 async function loadServerPicks(){if(!currentUser)return;const {data,error}=await sb.from("picks").select("*");if(error)return console.warn(error);for(const p of data||[]){const kk=p.market_id;state.picks[kk]={eventId:kk,series:"F1",market:"Formula 1",num:p.competitor_key,name:p.competitor_name,mult:Number(p.multiplier),overall:p.overall,drs:p.drs}}render()}
