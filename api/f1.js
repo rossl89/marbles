@@ -16,8 +16,13 @@ async function j(path){const r=await fetch("https://api.jolpi.ca/ergast/f1/"+pat
 module.exports=async function handler(req,res){
   try{
     const [rr,qq]=await Promise.all([j("2026/results.json?limit=2000"),j("2026/qualifying.json?limit=2000")]);
-    const races=rr.MRData.RaceTable.Races.filter(r=>+r.round<=15).sort((a,b)=>+a.round-+b.round);
-    const quals=new Map(qq.MRData.RaceTable.Races.filter(r=>+r.round<=15).map(r=>[+r.round,r.QualifyingResults||[]]));
+    const allRaces=rr.MRData.RaceTable.Races.sort((a,b)=>+a.round-+b.round);
+    // Never consume a partially completed weekend. Advance only when an official race classification exists.
+    const completedRounds=allRaces.map(r=>+r.round);
+    const throughRound=completedRounds.length?Math.max(...completedRounds):0;
+    const targetRound=throughRound+1;
+    const races=allRaces.filter(r=>+r.round<=throughRound);
+    const quals=new Map(qq.MRData.RaceTable.Races.filter(r=>+r.round<=throughRound).map(r=>[+r.round,r.QualifyingResults||[]]));
     const H=new Map(), Q=new Map(), P=new Map(), meta=new Map();
     for(const race of races){
       const n=race.Results.length, q=quals.get(+race.round)||[], qn=q.length;
@@ -30,11 +35,11 @@ module.exports=async function handler(req,res){
       for(const x of race.Results){const id=x.Driver.driverId,h=H.get(id)||[];h.push(finished(x.status)?perf(+x.position,n):.35);H.set(id,h)}
       for(const x of q){const id=x.Driver.driverId,h=Q.get(id)||[];h.push(perf(+x.position,qn));Q.set(id,h)}
     }
-    // Calculate Round 16 price from all completed history through Round 15.
+    // Calculate the next market only from completed weekends.
     const out=[];
     for(const [id,m] of meta){const p=price(H.get(id)||[],Q.get(id)||[],P.get(id));out.push({...m,...p,multiplier:+p.final.toFixed(3),races:(H.get(id)||[]).length})}
     out.sort((a,b)=>a.multiplier-b.multiplier);
     res.setHeader("Cache-Control","s-maxage=1800, stale-while-revalidate=3600");
-    res.status(200).json({engine:"1.0",season:2026,throughRound:15,targetRound:16,leakageGuard:"Current weekend excluded",drivers:out});
+    res.status(200).json({engine:"1.0",season:2026,throughRound,targetRound,marketReady:throughRound>=16,leakageGuard:"Only completed race weekends are consumed; partial current-weekend sessions are excluded",drivers:out});
   }catch(e){res.status(500).json({error:e.message})}
 }
