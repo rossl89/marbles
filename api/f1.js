@@ -40,6 +40,11 @@ module.exports=async function handler(req,res){
     for(const [id,m] of meta){const p=price(H.get(id)||[],Q.get(id)||[],P.get(id));out.push({...m,...p,multiplier:+p.final.toFixed(3),races:(H.get(id)||[]).length})}
     out.sort((a,b)=>a.multiplier-b.multiplier);
     res.setHeader("Cache-Control","s-maxage=1800, stale-while-revalidate=3600");
-    res.status(200).json({engine:"1.0",season:2026,throughRound,targetRound,marketReady:throughRound>=16,leakageGuard:"Only completed race weekends are consumed; partial current-weekend sessions are excluded",drivers:out});
+    // Server-authoritative Singapore lock. Client clocks cannot reopen the market.
+    const singaporeLock=Date.parse("2026-10-09T08:30:00Z"); // 16:30 SGT
+    const now=Date.now();
+    const marketReady=throughRound>=16;
+    const marketOpen=marketReady && now<singaporeLock;
+    res.status(200).json({engine:"1.0",season:2026,throughRound,targetRound,marketReady,marketOpen,serverNow:new Date(now).toISOString(),lockAt:new Date(singaporeLock).toISOString(),leakageGuard:"Only completed race weekends are consumed; partial current-weekend sessions are excluded",drivers:out});
   }catch(e){res.status(500).json({error:e.message})}
 }
