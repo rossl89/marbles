@@ -43,6 +43,23 @@ nav{top:0;padding:9px 0;background:#070809ed;backdrop-filter:blur(18px);border-c
 .landing .steps .card{opacity:0;transform:translateY(24px);transition:.55s ease}.landing .explain.reveal .steps .card{opacity:1;transform:none}.landing .explain.reveal .steps .card:nth-child(2){transition-delay:.12s}.landing .explain.reveal .steps .card:nth-child(3){transition-delay:.24s}
 @media(max-width:800px){.landing .explain{min-height:82vh}.landing .explain:before,.landing .explain:after{display:none}}
 @media(prefers-reduced-motion:reduce){.landing .explainHead,.landing .silverstone,.landing .steps,.landingFinal,.landing .steps .card{opacity:1!important;transform:none!important;transition:none!important}.landing .explain:before{transform:scaleY(1);transition:none}}
+
+/* Landing story refinement */
+.landing .explain{min-height:100vh;align-items:center;text-align:center;padding:70px 0}
+.landing .explainHead{width:min(900px,100%);margin:0 auto 34px}
+.landing .explainHead .eyebrow{font-size:clamp(20px,2.2vw,30px);letter-spacing:.035em;color:#fff;margin-bottom:18px}
+.landing .explainHead .eyebrow::first-letter{color:var(--red)}
+.landing .explainHead h2{font-size:clamp(42px,5.5vw,74px);margin:0 0 22px}
+.landing .explainHead p{max-width:760px;margin-left:auto!important;margin-right:auto!important}
+.landing .explain>.card{width:min(900px,100%);text-align:left}
+.landing .steps{width:min(1100px,100%);text-align:left}
+.landing .silverstone{width:min(1100px,100%);text-align:left}
+.landing .explainHead,.landing .silverstone,.landing .steps,.landingFinal{transform:translateY(34px) scale(.985);filter:blur(4px);transition:opacity 1.05s cubic-bezier(.16,1,.3,1),transform 1.05s cubic-bezier(.16,1,.3,1),filter .85s ease}
+.landing .explain.reveal .explainHead,.landing .explain.reveal .silverstone,.landing .explain.reveal .steps,.landingFinal.reveal{transform:none;filter:blur(0)}
+.landing .explain:before{left:50%;top:8%;bottom:auto;width:1px;height:54px;transform:scaleY(0);background:linear-gradient(var(--red),#3a3f47)}
+.landing .explain.reveal:after{left:calc(50% - 4px);top:8%}
+.landing .steps .card{transition:opacity .8s cubic-bezier(.16,1,.3,1),transform .8s cubic-bezier(.16,1,.3,1)}
+@media(max-width:800px){.landing .explain{min-height:92vh;padding:55px 0}.landing .explainHead .eyebrow{font-size:21px}.landing .explainHead h2{font-size:40px}.landing .explain>.card{text-align:left}}
 </style><script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script></head><body><div class="wrap">
 <header><div class="brand"><span class="mark"></span>MARBLES</div><div class="small">BETA · 2026</div><div id="account" style="display:flex;gap:8px;align-items:center"><button class="ghost" id="authBtn">SIGN IN</button></div></header>
 <nav><button class="on" data-page="weekend">Weekend</button><button data-page="picks">My Picks</button><button data-page="standings">Standings</button><button data-page="how">How to Play</button></nav>
