@@ -37,11 +37,20 @@ module.exports=async function handler(req,res){
     const [rr,qq,schedulePayload]=await Promise.all([j("2026/results.json?limit=2000"),j("2026/qualifying.json?limit=2000"),alpha("schedules/2026/")]);
     const allRaces=rr.MRData.RaceTable.Races.sort((a,b)=>+a.round-+b.round);
 
-    // Alpha is the authoritative current-season results source; legacy remains history fallback.
-    const alphaRounds=await Promise.all(Array.from({length:24},(_,i)=>i+1).map(async round=>{
+    // Alpha result endpoints require the opaque round_id (round_xxxxx), not the round number.
+    // Resolve those IDs from the season schedule, then fetch each race classification.
+    const schedRoot=schedulePayload?.MRData||schedulePayload;
+    const schedRounds=schedRoot?.rounds||schedRoot?.Rounds||schedRoot?.data||schedRoot?.items||schedRoot?.schedule?.rounds||schedRoot?.schedule||[];
+    const scheduleRounds=Array.isArray(schedRounds)?schedRounds:(schedRounds?.rounds||schedRounds?.data||[]);
+    const roundMeta=scheduleRounds.map((x,i)=>({
+      raw:x,
+      number:+(get(x,"round","round_number","number")||get(x?.round_info||{},"round","round_number","number")||i+1),
+      id:get(x,"id","round_id","api_id")||get(x?.round_info||{},"id","round_id","api_id")
+    })).filter(x=>x.id&&x.number);
+    const alphaRounds=await Promise.all(roundMeta.map(async rm=>{
       try{
-        const payload=await alpha("results/"+round+"/R/");
-        const parsed=alphaPayload(payload,round);
+        const payload=await alpha("results/"+encodeURIComponent(rm.id)+"/R/");
+        const parsed=alphaPayload(payload,rm.number);
         return parsed.results.length?parsed:null;
       }catch{return null}
     }));
@@ -76,9 +85,7 @@ module.exports=async function handler(req,res){
     res.setHeader("Cache-Control","no-store, max-age=0");
     // Server-authoritative lock derived from the next round's first official on-track session.
     // No race-specific dates are hard-coded: each rollover reads the 2026 schedule automatically.
-    const schedRoot=schedulePayload?.MRData||schedulePayload;
-    const schedRounds=schedRoot?.rounds||schedRoot?.Rounds||schedRoot?.data||schedRoot?.items||schedRoot?.schedule?.rounds||[];
-    const nextRound=Array.isArray(schedRounds)?schedRounds.find(x=>+(get(x,"round","round_number")||get(x?.round_info||{},"round","round_number"))===targetRound):null;
+    const nextRound=roundMeta.find(x=>x.number===targetRound)?.raw||null;
     const sessions=nextRound?(get(nextRound,"sessions","Sessions","full_sessions","schedule")||[]):[];
     const sessionList=Array.isArray(sessions)?sessions:Object.values(sessions||{});
     const sessionTimes=sessionList.map(s=>({
