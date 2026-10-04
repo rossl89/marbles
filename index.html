@@ -205,15 +205,21 @@ function picks(){let p=Object.values(state.picks);document.getElementById("pickg
 async function loadLiveF1(){
   try{
     const r=await fetch("/api/f1"); if(!r.ok) throw new Error("HTTP "+r.status);
-    const d=await r.json(), ev=DATA.find(x=>x.id==="f1"), market=ev.markets[0]; liveF1={open:!!d.marketOpen,ready:!!d.marketReady,lockAt:d.lockAt,latestResult:d.latestResult||null};
+    const d=await r.json(), ev=DATA.find(x=>x.id==="f1"), market=ev.markets[0];
+    liveF1={open:!!d.marketOpen,ready:!!d.marketReady,lockAt:d.lockAt,latestResult:d.latestResult||null,nextEvent:d.nextEvent||null};
     market.entries=d.drivers.map(x=>[String(x.number),x.name,x.multiplier]);
+    const nextName=d.nextEvent?.name||("Round "+d.targetRound);
+    const lockDate=d.lockAt?new Date(d.lockAt):null;
+    const lockText=lockDate&&!Number.isNaN(lockDate.getTime())
+      ? new Intl.DateTimeFormat("en-GB",{weekday:"short",day:"numeric",month:"short",hour:"2-digit",minute:"2-digit",timeZoneName:"short"}).format(lockDate)
+      : "First session time unavailable";
     if(d.marketReady){
-      ev.event="Singapore Grand Prix · live market";
-      ev.lock="Fri 9 Oct · FP1 16:30 SGT";
+      ev.event=nextName+" · live market";
+      ev.lock=(d.nextEvent?.firstSession||"First session")+" · "+lockText;
       ev.liveOpen=d.marketOpen;
     }else{
-      ev.event="Bahrain GP in Malaysia · pre-event model";
-      ev.lock="FP1 — market now locked";
+      ev.event=nextName+" · market pending";
+      ev.lock=lockText;
       ev.liveOpen=false;
     }
     render();
