@@ -153,7 +153,9 @@ module.exports=async function handler(req,res){
     let throughRound=0;
     while(completedSet.has(throughRound+1)) throughRound++;
     const targetRound=throughRound+1;
-    const races=allRaces.filter(r=>+r.round<=throughRound);
+    const storedByRound=new Map(stored.map(x=>[+x.round,x]));
+    const storedContiguous=Array.from({length:throughRound},(_,i)=>i+1).every(n=>storedByRound.has(n));
+    const races=(storedContiguous?stored.map(x=>({round:String(x.round),raceName:x.race_name,date:x.race_date,Circuit:{circuitName:x.circuit||""},Results:(x.race_results||[]).map(y=>({position:String(y.position),number:String(y.number||""),status:y.status||"Finished",Driver:{driverId:canonicalId(y.name,y.number),givenName:String(y.name||"").split(" ").slice(0,-1).join(" "),familyName:String(y.name||"").split(" ").slice(-1)[0]},Constructor:{name:y.team||""}})),AlphaQualifying:x.qualifying_results||[],AlphaSprint:x.sprint_results||[]})):allRaces.filter(r=>+r.round<=throughRound)).sort((a,b)=>+a.round-+b.round);
     const quals=new Map(qq.MRData.RaceTable.Races.filter(r=>+r.round<=throughRound).map(r=>[+r.round,r.QualifyingResults||[]]));
     const H=new Map(), Q=new Map(), P=new Map(), meta=new Map(), sprintCounts=new Map();
     for(const race of races){
@@ -179,7 +181,7 @@ module.exports=async function handler(req,res){
     for(const [id,m] of meta){const p=price(H.get(id)||[],Q.get(id)||[],P.get(id));out.push({...m,...p,multiplier:+p.final.toFixed(3),raceHistory:(H.get(id)||[]).map(x=>+x.toFixed(6)),qualHistory:(Q.get(id)||[]).map(x=>+x.toFixed(6)),sprints:sprintCounts.get(id)||0,races:(H.get(id)||[]).length,raceObservations:(H.get(id)||[]).length-(sprintCounts.get(id)||0)})}
     out.sort((a,b)=>a.multiplier-b.multiplier);
     res.setHeader("Cache-Control","no-store, max-age=0");
-    const latestRace=allRaces.length?allRaces[allRaces.length-1]:null;
+    const latestRace=races.length?races[races.length-1]:null;
     // Server-authoritative lock derived from the next round's first official on-track session.
     // No race-specific dates are hard-coded: each rollover reads the 2026 schedule automatically.
     // Match the next event chronologically: legacy and Alpha round numbering can differ.
