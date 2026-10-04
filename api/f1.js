@@ -173,7 +173,7 @@ module.exports=async function handler(req,res){
     }
     // Calculate the next market only from completed weekends.
     const out=[];
-    for(const [id,m] of meta){const p=price(H.get(id)||[],Q.get(id)||[],P.get(id));out.push({...m,...p,multiplier:+p.final.toFixed(3),raceHistory:(H.get(id)||[]).map(x=>+x.toFixed(6)),qualHistory:(Q.get(id)||[]).map(x=>+x.toFixed(6)),sprints:sprintCounts.get(id)||0,races:(H.get(id)||[]).length})}
+    for(const [id,m] of meta){const p=price(H.get(id)||[],Q.get(id)||[],P.get(id));out.push({...m,...p,multiplier:+p.final.toFixed(3),raceHistory:(H.get(id)||[]).map(x=>+x.toFixed(6)),qualHistory:(Q.get(id)||[]).map(x=>+x.toFixed(6)),sprints:sprintCounts.get(id)||0,races:(H.get(id)||[]).length,raceObservations:(H.get(id)||[]).length-(sprintCounts.get(id)||0)})}
     out.sort((a,b)=>a.multiplier-b.multiplier);
     res.setHeader("Cache-Control","no-store, max-age=0");
     const latestRace=allRaces.length?allRaces[allRaces.length-1]:null;
