@@ -96,15 +96,11 @@ module.exports=async function handler(req,res){
       const raceRows=await of("session_result?session_key="+raceSession.session_key).catch(()=>[]);
       if(!raceRows?.length) continue;
       const meeting=meetingByKey.get(meetingKey)||{};
-      // Join to canonical calendar chronologically; OpenF1 meeting/session dates are authoritative
-      // for completion, Jolpica calendar supplies championship round numbering.
+      // OpenF1 is authoritative for completed-event identity.  Do not cross-join
+      // providers by date: meeting dates and canonical race dates can differ.
       const raceDate=String(raceSession.date_start||"").slice(0,10);
-      let calendar=scheduleRounds.find(r=>r.date===raceDate);
-      if(!calendar){
-        const t=Date.parse(raceDate+"T12:00:00Z");
-        calendar=scheduleRounds.map(r=>({r,d:Math.abs(Date.parse(r.date+"T12:00:00Z")-t)})).filter(x=>x.d<=3*86400000).sort((a,b)=>a.d-b.d)[0]?.r;
-      }
-      if(!calendar) continue;
+      const meetingName=meeting.meeting_name||meeting.meeting_official_name||meeting.location||"Grand Prix";
+      const meetingCircuit=meeting.circuit_short_name||meeting.location||meeting.country_name||"";
       const qSession=ss.filter(s=>String(s.session_type).toLowerCase()==="qualifying"||String(s.session_name).toLowerCase()==="qualifying").sort((a,b)=>Date.parse(b.date_start)-Date.parse(a.date_start))[0];
       const sprintSession=ss.find(s=>String(s.session_name).toLowerCase()==="sprint");
       const [qRows,sRows]=await Promise.all([
@@ -120,10 +116,16 @@ module.exports=async function handler(req,res){
       const mappedRace=raceRows.map(mk).filter(x=>x.position>0);
       const mappedQ=(qRows||[]).map(mk).filter(x=>x.position>0);
       const mappedS=(sRows||[]).map(mk).filter(x=>x.position>0);
-      const race={round:String(calendar.round),raceName:calendar.raceName,date:calendar.date,Circuit:calendar.Circuit,Results:mappedRace.map(x=>({position:String(x.position),number:x.number,status:x.status,Driver:{driverId:canonicalId(x.name,x.number),givenName:x.name.split(" ").slice(0,-1).join(" "),familyName:x.name.split(" ").slice(-1)[0]},Constructor:{name:x.team}})),AlphaQualifying:mappedQ,AlphaSprint:mappedS};
-      const ix=allRaces.findIndex(r=>+r.round===+calendar.round);
+      openf1Rounds.push({date:raceDate,raceName:meetingName,circuit:meetingCircuit,Results:mappedRace,qualifying:mappedQ,sprint:mappedS});
+
+    }
+    // Completed OpenF1 races define their own championship sequence.
+    openf1Rounds.sort((a,b)=>Date.parse(a.date)-Date.parse(b.date));
+    for(let i=0;i<openf1Rounds.length;i++){
+      const x=openf1Rounds[i], round=i+1;
+      const race={round:String(round),raceName:x.raceName,date:x.date,Circuit:{circuitName:x.circuit},Results:x.Results.map(y=>({position:String(y.position),number:y.number,status:y.status,Driver:{driverId:canonicalId(y.name,y.number),givenName:y.name.split(" ").slice(0,-1).join(" "),familyName:y.name.split(" ").slice(-1)[0]},Constructor:{name:y.team}})),AlphaQualifying:x.qualifying,AlphaSprint:x.sprint};
+      const ix=allRaces.findIndex(r=>+r.round===round);
       if(ix>=0) allRaces[ix]=race; else allRaces.push(race);
-      openf1Rounds.push(+calendar.round);
     }
     allRaces.sort((a,b)=>+a.round-+b.round);
     // Never consume a partially completed weekend. Advance only when an official race classification exists.
@@ -194,6 +196,6 @@ module.exports=async function handler(req,res){
         status:x.status||""
       }))
     }:null;
-    res.status(200).json({engine:"1.0",season:2026,throughRound,targetRound,marketReady,marketOpen,serverNow:new Date(now).toISOString(),lockAt:lockAt?new Date(lockAt).toISOString():null,nextEvent:nextRound?{round:targetRound,name:nextRound.raceName||("Round "+targetRound),firstSession:firstSession?.name||null}:null,sourceStatus:{provider:"OpenF1 historical session_result",legacyCompleted:rr.MRData.RaceTable.Races.length,openf1Meetings:(meetings||[]).length,openf1Sessions:(sessions||[]).length,openf1CompletedRounds:[...new Set(openf1Rounds)].sort((a,b)=>a-b),scheduleRounds:scheduleRounds.length,driverMetadata:(drivers||[]).length,completedCalendarRounds:[...completedSet].sort((a,b)=>a-b)},leakageGuard:"Only completed race weekends are consumed; partial current-weekend sessions are excluded",latestResult,drivers:out});
+    res.status(200).json({engine:"1.0",season:2026,throughRound,targetRound,marketReady,marketOpen,serverNow:new Date(now).toISOString(),lockAt:lockAt?new Date(lockAt).toISOString():null,nextEvent:nextRound?{round:targetRound,name:nextRound.raceName||("Round "+targetRound),firstSession:firstSession?.name||null}:null,sourceStatus:{provider:"OpenF1 historical session_result",legacyCompleted:rr.MRData.RaceTable.Races.length,openf1Meetings:(meetings||[]).length,openf1Sessions:(sessions||[]).length,openf1CompletedRounds:openf1Rounds.map((_,i)=>i+1),scheduleRounds:scheduleRounds.length,driverMetadata:(drivers||[]).length,completedCalendarRounds:[...completedSet].sort((a,b)=>a-b)},leakageGuard:"Only completed race weekends are consumed; partial current-weekend sessions are excluded",latestResult,drivers:out});
   }catch(e){res.status(500).json({error:e.message})}
 }
