@@ -12,11 +12,31 @@ function price(rh,qh,prev){
   const final=prev==null?1.5:Math.max(1,Math.min(2,Math.max(prev-.15,Math.min(prev+.15,target))));
   return {season,recent,qual,rating,confidence,raw,final};
 }
-async function j(path){const r=await fetch("https://api.jolpi.ca/ergast/f1/"+path);if(!r.ok)throw new Error("Jolpica "+r.status);return r.json()}
+async function j(path){const r=await fetch("https://api.jolpi.ca/ergast/f1/"+path);if(!r.ok)throw new Error("Jolpica legacy "+r.status);return r.json()}
+async function alpha(path){const r=await fetch("https://api.jolpi.ca/ergast/f1/alpha/"+path);if(!r.ok)throw new Error("Jolpica alpha "+r.status);return r.json()}
+const get=(o,...keys)=>{for(const k of keys){if(o&&o[k]!=null)return o[k]}};
+function normalizeAlphaResult(x){
+  const d=get(x,"driver","Driver")||{}, t=get(x,"team","constructor","Constructor")||{};
+  const given=get(d,"given_name","givenName","first_name")||"", family=get(d,"family_name","familyName","last_name")||"";
+  return {position:+get(x,"position","classified_position","rank")||0,number:String(get(x,"car_number","number")||get(d,"number")||""),name:(given+" "+family).trim()||get(d,"name","full_name")||get(x,"driver_name")||"",team:get(t,"name")||get(x,"team_name","constructor_name")||"",status:get(x,"status","classification")||""};
+}
+function alphaPayload(a,round){
+  const root=a?.MRData||a;
+  const rows=root?.results||root?.Results||root?.data||root?.items||root?.session_results||[];
+  const meta=root?.round||root?.Round||root?.race||root?.event||{};
+  const list=Array.isArray(rows)?rows:(rows?.results||rows?.data||[]);
+  return {round:+get(meta,"round","round_number")||round,raceName:get(meta,"race_name","name")||"Bahrain Grand Prix in Malaysia",circuit:get(meta?.circuit||{},"name","circuit_name")||get(meta,"circuit_name")||"Sepang International Circuit",date:get(meta,"date","start_date")||"2026-10-04",results:list.map(normalizeAlphaResult).filter(x=>x.name)};
+}
 module.exports=async function handler(req,res){
   try{
-    const [rr,qq]=await Promise.all([j("2026/results.json?limit=2000"),j("2026/qualifying.json?limit=2000")]);
+    const [rr,qq,alpha16]=await Promise.all([j("2026/results.json?limit=2000"),j("2026/qualifying.json?limit=2000"),alpha("results/16/race/").catch(()=>null)]);
     const allRaces=rr.MRData.RaceTable.Races.sort((a,b)=>+a.round-+b.round);
+    const a16=alpha16?alphaPayload(alpha16,16):null;
+    const alpha16Complete=!!(a16&&a16.results&&a16.results.length>=19&&a16.results.some(x=>x.position===1));
+    if(alpha16Complete&&!allRaces.some(r=>+r.round===16)){
+      allRaces.push({round:"16",raceName:a16.raceName,date:a16.date,Circuit:{circuitName:a16.circuit},Results:a16.results.map(x=>({position:String(x.position),number:x.number,status:x.status,Driver:{driverId:x.name.toLowerCase().replace(/[^a-z0-9]+/g,"-"),givenName:x.name.split(" ").slice(0,-1).join(" "),familyName:x.name.split(" ").slice(-1)[0]},Constructor:{name:x.team}}))});
+      allRaces.sort((a,b)=>+a.round-+b.round);
+    }
     // Never consume a partially completed weekend. Advance only when an official race classification exists.
     const completedRounds=allRaces.map(r=>+r.round);
     const throughRound=completedRounds.length?Math.max(...completedRounds):0;
