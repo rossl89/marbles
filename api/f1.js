@@ -12,8 +12,8 @@ function price(rh,qh,prev){
   const final=prev==null?1.5:Math.max(1,Math.min(2,Math.max(prev-.15,Math.min(prev+.15,target))));
   return {season,recent,qual,rating,confidence,raw,final};
 }
-async function j(path){const r=await fetch("https://api.jolpi.ca/ergast/f1/"+path);if(!r.ok)throw new Error("Jolpica legacy "+r.status);return r.json()}
-async function alpha(path){const r=await fetch("https://api.jolpi.ca/f1/alpha/"+path);if(!r.ok)throw new Error("Jolpica alpha "+r.status);return r.json()}
+async function j(path){const r=await fetch("https://api.jolpi.ca/ergast/f1/"+path,{headers:{"User-Agent":"MarblesFantasy/0.1"}});if(!r.ok)throw new Error("Jolpica legacy "+r.status);return r.json()}
+async function alpha(path){const r=await fetch("https://api.jolpi.ca/f1/alpha/"+path,{headers:{"User-Agent":"MarblesFantasy/0.1"}});if(!r.ok)throw new Error("Jolpica alpha "+r.status);return r.json()}
 const get=(o,...keys)=>{for(const k of keys){if(o&&o[k]!=null)return o[k]}};
 const canonicalId=(name,number="")=>{
   const n=String(name||"").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"");
@@ -24,26 +24,40 @@ function normalizeAlphaResult(x){
   const given=get(d,"given_name","givenName","first_name")||"", family=get(d,"family_name","familyName","last_name")||"";
   return {position:+get(x,"position","classified_position","rank")||0,number:String(get(x,"car_number","number")||get(d,"number")||""),name:(given+" "+family).trim()||get(d,"name","full_name")||get(x,"driver_name")||"",team:get(t,"name")||get(x,"team_name","constructor_name")||"",status:get(x,"status","classification")||""};
 }
+function resultRows(payload){
+  let best=[];
+  (function walk(v){
+    if(!v||typeof v!=="object") return;
+    if(Array.isArray(v)){
+      if(v.length){
+        const score=v.filter(x=>x&&typeof x==="object"&&get(x,"position","classified_position","rank")!=null&&(get(x,"driver","Driver")||get(x,"driver_name"))).length;
+        if(score>best.length) best=v;
+      }
+      v.forEach(walk); return;
+    }
+    Object.values(v).forEach(walk);
+  })(payload);
+  return best;
+}
 function alphaSessionPayload(a,round,type){
-  const root=a?.MRData||a;
-  const sessions=root?.results||root?.Results||root?.data||root?.items||root?.session_results||[];
-  const arr=Array.isArray(sessions)?sessions:(sessions?.results||sessions?.data||[]);
-  const wanted=arr.find(s=>String(get(s,"session","session_code","type","name")||"").toUpperCase()===String(type).toUpperCase())||null;
-  const rows=wanted?(get(wanted,"results","classification","data","items")||[]):arr;
-  const list=Array.isArray(rows)?rows:(rows?.results||rows?.data||[]);
-  return list.map(normalizeAlphaResult).filter(x=>x.name&&x.position>0);
+  return resultRows(a).map(normalizeAlphaResult).filter(x=>x.name&&x.position>0);
 }
 function alphaPayload(a,round){
+  const rows=resultRows(a);
   const root=a?.MRData||a;
-  const sessions=root?.results||root?.Results||root?.data||root?.items||root?.session_results||[];
-  const arr=Array.isArray(sessions)?sessions:(sessions?.results||sessions?.data||[]);
-  // /results/{round}/ returns the available result sets. Pick the race classification,
-  // rather than guessing a session_filter value.
-  const raceSet=arr.find(s=>/^(race|r)$/i.test(String(get(s,"session","session_code","type","name")||"")))||arr.find(s=>/race/i.test(String(get(s,"session","session_code","type","name")||"")))||null;
-  const rows=raceSet?(get(raceSet,"results","classification","data","items")||[]):arr;
-  const meta=(raceSet&&get(raceSet,"round","race","event"))||root?.round||root?.Round||root?.race||root?.event||{};
-  const list=Array.isArray(rows)?rows:(rows?.results||rows?.data||[]);
-  return {round:+get(meta,"round","round_number")||round,raceName:get(meta,"race_name","name")||"Bahrain Grand Prix in Malaysia",circuit:get(meta?.circuit||{},"name","circuit_name")||get(meta,"circuit_name")||"Sepang International Circuit",date:get(meta,"date","start_date")||"2026-10-04",results:list.map(normalizeAlphaResult).filter(x=>x.name)};
+  let meta={};
+  (function findMeta(v){
+    if(!v||typeof v!=="object"||Array.isArray(v)||Object.keys(meta).length) return;
+    if(get(v,"race_name","event_name","start_date","date")!=null) meta=v;
+    else Object.values(v).forEach(findMeta);
+  })(root);
+  return {
+    round:+get(meta,"round","round_number")||round,
+    raceName:get(meta,"race_name","event_name","name")||("Round "+round),
+    circuit:get(meta?.circuit||{},"name","circuit_name")||get(meta,"circuit_name")||"",
+    date:get(meta,"date","start_date")||"",
+    results:rows.map(normalizeAlphaResult).filter(x=>x.name&&x.position>0)
+  };
 }
 module.exports=async function handler(req,res){
   try{
@@ -165,6 +179,6 @@ module.exports=async function handler(req,res){
         status:x.status||""
       }))
     }:null;
-    res.status(200).json({engine:"1.0",season:2026,throughRound,targetRound,marketReady,marketOpen,serverNow:new Date(now).toISOString(),lockAt:lockAt?new Date(lockAt).toISOString():null,nextEvent:nextRound?{round:targetRound,name:nextRound.raceName||("Round "+targetRound),firstSession:firstSession?.name||null}:null,sourceStatus:{legacyCompleted:rr.MRData.RaceTable.Races.length,alphaRoundIds:foundRoundIds.size,alphaCompleted:alphaRounds.filter(Boolean).length,alphaParsedRounds:alphaRounds.filter(Boolean).map(x=>x.round).sort((a,b)=>a-b),scheduleRounds:scheduleRounds.length,completedCalendarRounds:[...completedSet].sort((a,b)=>a-b)},leakageGuard:"Only completed race weekends are consumed; partial current-weekend sessions are excluded",latestResult,drivers:out});
+    res.status(200).json({engine:"1.0",season:2026,throughRound,targetRound,marketReady,marketOpen,serverNow:new Date(now).toISOString(),lockAt:lockAt?new Date(lockAt).toISOString():null,nextEvent:nextRound?{round:targetRound,name:nextRound.raceName||("Round "+targetRound),firstSession:firstSession?.name||null}:null,sourceStatus:{legacyCompleted:rr.MRData.RaceTable.Races.length,alphaRoundIds:foundRoundIds.size,alphaCompleted:alphaRounds.filter(Boolean).length,alphaParsedRounds:alphaRounds.filter(Boolean).map(x=>x.round).sort((a,b)=>a-b),alphaMissingRounds:[...foundRoundIds.keys()].filter(n=>!alphaRounds.some(x=>x&&x.round===n)).sort((a,b)=>a-b),scheduleRounds:scheduleRounds.length,completedCalendarRounds:[...completedSet].sort((a,b)=>a-b)},leakageGuard:"Only completed race weekends are consumed; partial current-weekend sessions are excluded",latestResult,drivers:out});
   }catch(e){res.status(500).json({error:e.message})}
 }
