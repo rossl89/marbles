@@ -86,14 +86,21 @@ module.exports=async function handler(req,res){
       }catch{return null}
     }));
     for(const ar of alphaRounds.filter(Boolean)){
-      const race={round:String(ar.round),raceName:ar.raceName,date:ar.date,Circuit:{circuitName:ar.circuit},Results:ar.results.map(x=>({position:String(x.position),number:x.number,status:x.status,Driver:{driverId:canonicalId(x.name,x.number),givenName:x.name.split(" ").slice(0,-1).join(" "),familyName:x.name.split(" ").slice(-1)[0]},Constructor:{name:x.team}})),AlphaQualifying:ar.qualifying||[],AlphaSprint:ar.sprint||[]};
-      const ix=allRaces.findIndex(r=>+r.round===+ar.round);
+      const byDate=scheduleRounds.find(r=>r.date===ar.date);
+      const norm=s=>String(s||"").toLowerCase().replace(/[^a-z0-9]+/g,"");
+      const byName=!byDate?scheduleRounds.find(r=>norm(r.raceName)===norm(ar.raceName)):null;
+      const calendar=byDate||byName;
+      if(!calendar) continue;
+      const canonicalRound=+calendar.round;
+      const race={round:String(canonicalRound),raceName:calendar.raceName||ar.raceName,date:calendar.date||ar.date,Circuit:{circuitName:calendar.Circuit?.circuitName||ar.circuit},Results:ar.results.map(x=>({position:String(x.position),number:x.number,status:x.status,Driver:{driverId:canonicalId(x.name,x.number),givenName:x.name.split(" ").slice(0,-1).join(" "),familyName:x.name.split(" ").slice(-1)[0]},Constructor:{name:x.team}})),AlphaQualifying:ar.qualifying||[],AlphaSprint:ar.sprint||[]};
+      const ix=allRaces.findIndex(r=>+r.round===canonicalRound);
       if(ix>=0) allRaces[ix]=race; else allRaces.push(race);
     }
     allRaces.sort((a,b)=>+a.round-+b.round);
     // Never consume a partially completed weekend. Advance only when an official race classification exists.
-    const completedRounds=allRaces.map(r=>+r.round);
-    const throughRound=completedRounds.length?Math.max(...completedRounds):0;
+    const completedSet=new Set(allRaces.filter(r=>r.Results?.length).map(r=>+r.round));
+    let throughRound=0;
+    while(completedSet.has(throughRound+1)) throughRound++;
     const targetRound=throughRound+1;
     const races=allRaces.filter(r=>+r.round<=throughRound);
     const quals=new Map(qq.MRData.RaceTable.Races.filter(r=>+r.round<=throughRound).map(r=>[+r.round,r.QualifyingResults||[]]));
@@ -158,6 +165,6 @@ module.exports=async function handler(req,res){
         status:x.status||""
       }))
     }:null;
-    res.status(200).json({engine:"1.0",season:2026,throughRound,targetRound,marketReady,marketOpen,serverNow:new Date(now).toISOString(),lockAt:lockAt?new Date(lockAt).toISOString():null,nextEvent:nextRound?{round:targetRound,name:nextRound.raceName||("Round "+targetRound),firstSession:firstSession?.name||null}:null,sourceStatus:{legacyCompleted:rr.MRData.RaceTable.Races.length,alphaRoundIds:foundRoundIds.size,alphaCompleted:alphaRounds.filter(Boolean).length,scheduleRounds:scheduleRounds.length},leakageGuard:"Only completed race weekends are consumed; partial current-weekend sessions are excluded",latestResult,drivers:out});
+    res.status(200).json({engine:"1.0",season:2026,throughRound,targetRound,marketReady,marketOpen,serverNow:new Date(now).toISOString(),lockAt:lockAt?new Date(lockAt).toISOString():null,nextEvent:nextRound?{round:targetRound,name:nextRound.raceName||("Round "+targetRound),firstSession:firstSession?.name||null}:null,sourceStatus:{legacyCompleted:rr.MRData.RaceTable.Races.length,alphaRoundIds:foundRoundIds.size,alphaCompleted:alphaRounds.filter(Boolean).length,scheduleRounds:scheduleRounds.length,completedCalendarRounds:[...completedSet].sort((a,b)=>a-b)},leakageGuard:"Only completed race weekends are consumed; partial current-weekend sessions are excluded",latestResult,drivers:out});
   }catch(e){res.status(500).json({error:e.message})}
 }
