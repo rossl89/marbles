@@ -34,7 +34,7 @@ function alphaPayload(a,round){
 }
 module.exports=async function handler(req,res){
   try{
-    const [rr,qq]=await Promise.all([j("2026/results.json?limit=2000"),j("2026/qualifying.json?limit=2000")]);
+    const [rr,qq,schedulePayload]=await Promise.all([j("2026/results.json?limit=2000"),j("2026/qualifying.json?limit=2000"),alpha("schedules/2026/")]);
     const allRaces=rr.MRData.RaceTable.Races.sort((a,b)=>+a.round-+b.round);
 
     // Alpha is the authoritative current-season results source; legacy remains history fallback.
@@ -74,11 +74,22 @@ module.exports=async function handler(req,res){
     for(const [id,m] of meta){const p=price(H.get(id)||[],Q.get(id)||[],P.get(id));out.push({...m,...p,multiplier:+p.final.toFixed(3),races:(H.get(id)||[]).length})}
     out.sort((a,b)=>a.multiplier-b.multiplier);
     res.setHeader("Cache-Control","no-store, max-age=0");
-    // Server-authoritative Singapore lock. Client clocks cannot reopen the market.
-    const singaporeLock=Date.parse("2026-10-09T08:30:00Z"); // 16:30 SGT
+    // Server-authoritative lock derived from the next round's first official on-track session.
+    // No race-specific dates are hard-coded: each rollover reads the 2026 schedule automatically.
+    const schedRoot=schedulePayload?.MRData||schedulePayload;
+    const schedRounds=schedRoot?.rounds||schedRoot?.Rounds||schedRoot?.data||schedRoot?.items||schedRoot?.schedule?.rounds||[];
+    const nextRound=Array.isArray(schedRounds)?schedRounds.find(x=>+(get(x,"round","round_number")||get(x?.round_info||{},"round","round_number"))===targetRound):null;
+    const sessions=nextRound?(get(nextRound,"sessions","Sessions","full_sessions","schedule")||[]):[];
+    const sessionList=Array.isArray(sessions)?sessions:Object.values(sessions||{});
+    const sessionTimes=sessionList.map(s=>({
+      name:String(get(s,"name","session_name","type","code","session_code")||"Session"),
+      ts:Date.parse(get(s,"start_time","start","datetime","date_time","utc_start")||"")
+    })).filter(s=>Number.isFinite(s.ts)).sort((a,b)=>a.ts-b.ts);
+    const firstSession=sessionTimes[0]||null;
+    const lockAt=firstSession?firstSession.ts:null;
     const now=Date.now();
-    const marketReady=throughRound>0;
-    const marketOpen=marketReady && now<singaporeLock;
+    const marketReady=throughRound>0 && !!nextRound && !!lockAt;
+    const marketOpen=marketReady && now<lockAt;
     const latestRace=allRaces.length?allRaces[allRaces.length-1]:null;
     const latestResult=latestRace?{
       round:+latestRace.round,
@@ -93,6 +104,6 @@ module.exports=async function handler(req,res){
         status:x.status||""
       }))
     }:null;
-    res.status(200).json({engine:"1.0",season:2026,throughRound,targetRound,marketReady,marketOpen,serverNow:new Date(now).toISOString(),lockAt:new Date(singaporeLock).toISOString(),leakageGuard:"Only completed race weekends are consumed; partial current-weekend sessions are excluded",latestResult,drivers:out});
+    res.status(200).json({engine:"1.0",season:2026,throughRound,targetRound,marketReady,marketOpen,serverNow:new Date(now).toISOString(),lockAt:lockAt?new Date(lockAt).toISOString():null,nextEvent:nextRound?{round:targetRound,name:get(nextRound,"name","race_name","event_name")||get(nextRound?.round_info||{},"name","race_name","event_name")||("Round "+targetRound),firstSession:firstSession?.name||null}:null,leakageGuard:"Only completed race weekends are consumed; partial current-weekend sessions are excluded",latestResult,drivers:out});
   }catch(e){res.status(500).json({error:e.message})}
 }
