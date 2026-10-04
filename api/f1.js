@@ -85,11 +85,11 @@ module.exports=async function handler(req,res){
         return parsed.results.length?parsed:null;
       }catch{return null}
     }));
+
+    // Alpha's round number is the reliable join key to the canonical schedule; its
+    // race metadata/date can be incomplete. Never require Alpha metadata to match.
     for(const ar of alphaRounds.filter(Boolean)){
-      const byDate=scheduleRounds.find(r=>r.date===ar.date);
-      const norm=s=>String(s||"").toLowerCase().replace(/[^a-z0-9]+/g,"");
-      const byName=!byDate?scheduleRounds.find(r=>norm(r.raceName)===norm(ar.raceName)):null;
-      const calendar=byDate||byName;
+      const calendar=scheduleRounds.find(r=>+r.round===+ar.round);
       if(!calendar) continue;
       const canonicalRound=+calendar.round;
       const race={round:String(canonicalRound),raceName:calendar.raceName||ar.raceName,date:calendar.date||ar.date,Circuit:{circuitName:calendar.Circuit?.circuitName||ar.circuit},Results:ar.results.map(x=>({position:String(x.position),number:x.number,status:x.status,Driver:{driverId:canonicalId(x.name,x.number),givenName:x.name.split(" ").slice(0,-1).join(" "),familyName:x.name.split(" ").slice(-1)[0]},Constructor:{name:x.team}})),AlphaQualifying:ar.qualifying||[],AlphaSprint:ar.sprint||[]};
@@ -165,6 +165,6 @@ module.exports=async function handler(req,res){
         status:x.status||""
       }))
     }:null;
-    res.status(200).json({engine:"1.0",season:2026,throughRound,targetRound,marketReady,marketOpen,serverNow:new Date(now).toISOString(),lockAt:lockAt?new Date(lockAt).toISOString():null,nextEvent:nextRound?{round:targetRound,name:nextRound.raceName||("Round "+targetRound),firstSession:firstSession?.name||null}:null,sourceStatus:{legacyCompleted:rr.MRData.RaceTable.Races.length,alphaRoundIds:foundRoundIds.size,alphaCompleted:alphaRounds.filter(Boolean).length,scheduleRounds:scheduleRounds.length,completedCalendarRounds:[...completedSet].sort((a,b)=>a-b)},leakageGuard:"Only completed race weekends are consumed; partial current-weekend sessions are excluded",latestResult,drivers:out});
+    res.status(200).json({engine:"1.0",season:2026,throughRound,targetRound,marketReady,marketOpen,serverNow:new Date(now).toISOString(),lockAt:lockAt?new Date(lockAt).toISOString():null,nextEvent:nextRound?{round:targetRound,name:nextRound.raceName||("Round "+targetRound),firstSession:firstSession?.name||null}:null,sourceStatus:{legacyCompleted:rr.MRData.RaceTable.Races.length,alphaRoundIds:foundRoundIds.size,alphaCompleted:alphaRounds.filter(Boolean).length,alphaParsedRounds:alphaRounds.filter(Boolean).map(x=>x.round).sort((a,b)=>a-b),scheduleRounds:scheduleRounds.length,completedCalendarRounds:[...completedSet].sort((a,b)=>a-b)},leakageGuard:"Only completed race weekends are consumed; partial current-weekend sessions are excluded",latestResult,drivers:out});
   }catch(e){res.status(500).json({error:e.message})}
 }
