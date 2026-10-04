@@ -22,14 +22,19 @@ function normalizeAlphaResult(x){
 }
 function alphaPayload(a,round){
   const root=a?.MRData||a;
-  const rows=root?.results||root?.Results||root?.data||root?.items||root?.session_results||[];
-  const meta=root?.round||root?.Round||root?.race||root?.event||{};
+  const sessions=root?.results||root?.Results||root?.data||root?.items||root?.session_results||[];
+  const arr=Array.isArray(sessions)?sessions:(sessions?.results||sessions?.data||[]);
+  // /results/{round}/ returns the available result sets. Pick the race classification,
+  // rather than guessing a session_filter value.
+  const raceSet=arr.find(s=>/^(race|r)$/i.test(String(get(s,"session","session_code","type","name")||"")))||arr.find(s=>/race/i.test(String(get(s,"session","session_code","type","name")||"")))||null;
+  const rows=raceSet?(get(raceSet,"results","classification","data","items")||[]):arr;
+  const meta=(raceSet&&get(raceSet,"round","race","event"))||root?.round||root?.Round||root?.race||root?.event||{};
   const list=Array.isArray(rows)?rows:(rows?.results||rows?.data||[]);
   return {round:+get(meta,"round","round_number")||round,raceName:get(meta,"race_name","name")||"Bahrain Grand Prix in Malaysia",circuit:get(meta?.circuit||{},"name","circuit_name")||get(meta,"circuit_name")||"Sepang International Circuit",date:get(meta,"date","start_date")||"2026-10-04",results:list.map(normalizeAlphaResult).filter(x=>x.name)};
 }
 module.exports=async function handler(req,res){
   try{
-    const [rr,qq,alpha16]=await Promise.all([j("2026/results.json?limit=2000"),j("2026/qualifying.json?limit=2000"),alpha("results/16/race/").catch(()=>null)]);
+    const [rr,qq,alpha16]=await Promise.all([j("2026/results.json?limit=2000"),j("2026/qualifying.json?limit=2000"),alpha("results/16/").catch(()=>null)]);
     const allRaces=rr.MRData.RaceTable.Races.sort((a,b)=>+a.round-+b.round);
     const a16=alpha16?alphaPayload(alpha16,16):null;
     const alpha16Complete=!!(a16&&a16.results&&a16.results.length>=19&&a16.results.some(x=>x.position===1));
@@ -59,7 +64,7 @@ module.exports=async function handler(req,res){
     const out=[];
     for(const [id,m] of meta){const p=price(H.get(id)||[],Q.get(id)||[],P.get(id));out.push({...m,...p,multiplier:+p.final.toFixed(3),races:(H.get(id)||[]).length})}
     out.sort((a,b)=>a.multiplier-b.multiplier);
-    res.setHeader("Cache-Control","s-maxage=1800, stale-while-revalidate=3600");
+    res.setHeader("Cache-Control","no-store, max-age=0");
     // Server-authoritative Singapore lock. Client clocks cannot reopen the market.
     const singaporeLock=Date.parse("2026-10-09T08:30:00Z"); // 16:30 SGT
     const now=Date.now();
