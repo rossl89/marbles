@@ -45,6 +45,20 @@ module.exports=async function handler(req,res){
     const now=Date.now();
     const marketReady=throughRound>=16;
     const marketOpen=marketReady && now<singaporeLock;
-    res.status(200).json({engine:"1.0",season:2026,throughRound,targetRound,marketReady,marketOpen,serverNow:new Date(now).toISOString(),lockAt:new Date(singaporeLock).toISOString(),leakageGuard:"Only completed race weekends are consumed; partial current-weekend sessions are excluded",drivers:out});
+    const latestRace=allRaces.length?allRaces[allRaces.length-1]:null;
+    const latestResult=latestRace?{
+      round:+latestRace.round,
+      raceName:latestRace.raceName,
+      circuit:latestRace.Circuit?.circuitName||"",
+      date:latestRace.date,
+      results:(latestRace.Results||[]).map(x=>({
+        position:+x.position,
+        number:String(x.number),
+        name:x.Driver.givenName+" "+x.Driver.familyName,
+        team:x.Constructor?.name||"",
+        status:x.status||""
+      }))
+    }:null;
+    res.status(200).json({engine:"1.0",season:2026,throughRound,targetRound,marketReady,marketOpen,serverNow:new Date(now).toISOString(),lockAt:new Date(singaporeLock).toISOString(),leakageGuard:"Only completed race weekends are consumed; partial current-weekend sessions are excluded",latestResult,drivers:out});
   }catch(e){res.status(500).json({error:e.message})}
 }
