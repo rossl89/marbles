@@ -16,8 +16,11 @@ async function j(path){const r=await fetch("https://api.jolpi.ca/ergast/f1/"+pat
 async function alpha(path){const r=await fetch("https://api.jolpi.ca/f1/alpha/"+path,{headers:{"User-Agent":"MarblesFantasy/0.1"}});if(!r.ok)throw new Error("Jolpica alpha "+r.status);return r.json()}
 const get=(o,...keys)=>{for(const k of keys){if(o&&o[k]!=null)return o[k]}};
 const canonicalId=(name,number="")=>{
+  // F1 car number is stable across our 2026 sources; name formatting is not.
+  const num=String(number??"").trim();
+  if(num) return "car-"+num;
   const n=String(name||"").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"");
-  return n||("car-"+String(number||"unknown"));
+  return n||"unknown";
 };
 function normalizeAlphaResult(x){
   const d=get(x,"driver","Driver")||{}, t=get(x,"team","constructor","Constructor")||{};
