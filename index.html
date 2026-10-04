@@ -163,7 +163,7 @@ document.getElementById("signOut").onclick=async()=>{await sb.auth.signOut();loc
 async function loadServerPicks(){if(!currentUser)return;const {data,error}=await sb.from("picks").select("*");if(error)return console.warn(error);for(const p of data||[]){const kk=p.market_id;state.picks[kk]={eventId:kk,series:"F1",market:"Formula 1",num:p.competitor_key,name:p.competitor_name,mult:Number(p.multiplier),overall:p.overall,drs:p.drs}}render()}
 
 const DATA=[{id:"f1",series:"FORMULA 1",event:"Grand Prix",lock:"first official session",markets:[{id:"f1",name:"F1",type:"DRIVER",entries:[["1","Max Verstappen",1.24],["4","Lando Norris",1.31],["81","Oscar Piastri",1.37],["16","Charles Leclerc",1.48],["63","George Russell",1.53],["44","Lewis Hamilton",1.61]]}]},{id:"wec",series:"FIA WEC",event:"World Endurance Championship",lock:"first official session",markets:[{id:"hyp",name:"Hypercar",type:"CAR / CREW",entries:[["51","#51 Ferrari",1.26],["8","#8 Toyota",1.35],["20","#20 BMW",1.39],["36","#36 Alpine",1.44]]},{id:"lmgt3",name:"LMGT3",type:"CAR / CREW",entries:[["21","#21 Ferrari",1.35],["31","#31 BMW",1.35],["88","#88 Ford",1.35],["92","#92 Porsche",1.38]]}]},{id:"bgt",series:"BRITISH GT",event:"British GT Championship",lock:"first official session",markets:[{id:"gt3",name:"GT3",type:"CAR / CREW",entries:[["1","#1 GT3",1.29],["7","#7 GT3",1.42],["18","#18 GT3",1.51],["77","#77 GT3",1.66]]},{id:"gt4",name:"GT4",type:"CAR / CREW",entries:[["90","#90 GT4",1.27],["71","#71 GT4",1.41],["12","#12 GT4",1.54],["24","#24 GT4",1.69]]}]}];
-let state=JSON.parse(localStorage.getItem("marbles-live-beta")||'{"picks":{}}'),sel={},liveF1={open:false,ready:false,lockAt:null},activeEvent=null;
+let state=JSON.parse(localStorage.getItem("marbles-live-beta")||'{"picks":{}}'),sel={},liveF1={open:false,ready:false,lockAt:null,latestResult:null},activeEvent=null;
 const k=(e,m)=>e.id+"|"+m.id, overall=()=>Object.values(state.picks).filter(x=>x.overall), drsUsed=()=>Object.values(state.picks).filter(x=>x.drs).length;
 function band(x){return x<=1.3?"Favourite":x<=1.42?"Contender":x<=1.55?"Value":"Outsider"}
 function save(){localStorage.setItem("marbles-live-beta",JSON.stringify(state))}
@@ -175,15 +175,25 @@ function render(){
   const pickCount=Object.keys(state.picks).length;
   const status=document.getElementById("weekendPickStatus");
   if(status)status.textContent=pickCount+" PICK"+(pickCount===1?"":"S")+" MADE";
-  if(tiles)tiles.innerHTML=DATA.map(e=>{
+  if(tiles){
+    const resultTile=liveF1.latestResult?'<button class="weekendTile '+(activeEvent==="f1-results"?"active":"")+'" data-event-tile="f1-results"><div class="eyebrow">FORMULA 1 · RESULTS</div><h3>'+liveF1.latestResult.raceName+'</h3><div class="small">Official race classification</div><div class="tileBottom"><span class="tileStatus done">RESULTS</span><span>→</span></div></button>':"";
+    tiles.innerHTML=resultTile+DATA.map(e=>{
     const made=e.markets.filter(m=>state.picks[k(e,m)]).length,total=e.markets.length;
     const isF1=e.id==="f1",locked=isF1&&!liveF1.open;
     const label=locked?(made?"✓ IN PARC FERMÉ":"🔒 IN PARC FERMÉ"):(made===total?"✓ PICKS MADE":made?made+" / "+total+" PICKS":"MAKE PICKS");
     return '<button class="weekendTile '+(activeEvent===e.id?"active":"")+'" data-event-tile="'+e.id+'"><div class="eyebrow">'+e.series+'</div><h3>'+e.event+'</h3><div class="small">'+(locked?"In Parc Fermé · results hub coming next":"Locks "+e.lock)+'</div><div class="tileBottom"><span class="tileStatus '+(made===total||locked?"done":"")+'">'+label+'</span><span>→</span></div></button>'
   }).join("");
+  }
   document.querySelectorAll("[data-event-tile]").forEach(x=>x.onclick=()=>{activeEvent=x.dataset.eventTile;render();document.getElementById("selectedEventTitle")?.scrollIntoView({behavior:"smooth",block:"start"})});
   const holder=document.getElementById("events"),title=document.getElementById("selectedEventTitle"),meta=document.getElementById("selectedEventMeta");
   if(!activeEvent){holder.innerHTML='<div class="empty">Choose an event above to make or review your selections.</div>';title.textContent="Choose an event";meta.textContent="Open a tile above to make or review your picks.";picks();return}
+  if(activeEvent==="f1-results"&&liveF1.latestResult){
+    const r=liveF1.latestResult;
+    title.textContent="FORMULA 1 · "+r.raceName;
+    meta.textContent="Official race classification";
+    holder.innerHTML='<article class="event"><div class="eventTop"><div><div class="eyebrow">RACE RESULTS</div><h3>'+r.raceName+'</h3><div class="small">'+r.circuit+' · '+r.date+'</div></div><div class="open" style="color:#aeb5be">● RESULTS</div></div><div class="market">'+r.results.map(x=>'<div class="entry"><b>P'+x.position+'</b><div><b>'+x.name+'</b><div class="small">'+x.team+'</div></div><div class="band">'+x.status+'</div></div>').join("")+'</div></article>';
+    picks();return;
+  }
   const e=DATA.find(x=>x.id===activeEvent);if(!e)return;
   title.textContent=e.series+" · "+e.event;meta.textContent="Your full grid and selections";
   holder.innerHTML='<article class="event"><div class="eventTop"><div><div class="eyebrow">'+e.series+'</div><h3>'+e.event+'</h3><div class="small">Locks '+e.lock+'</div></div><div class="open">'+(e.id==="f1"&&!liveF1.open?"● IN PARC FERMÉ":"● OPEN")+'</div></div><div class="markets">'+e.markets.map(m=>{let kk=k(e,m),p=state.picks[kk],sn=sel[kk]||m.entries[0][0];return '<div class="market"><div class="eyebrow">'+m.name+' · '+m.type+'</div><h4>'+(p?"Pick locked":"Choose your pick")+'</h4>'+(p?entry(kk,[p.num,p.name,p.mult],true)+'<div class="locked">✓ '+p.name+(p.overall?" · ⭐ OVERALL":"")+(p.drs?" · 🟢 DRS":"")+'</div>':m.entries.map(x=>entry(kk,x,sn===x[0])).join("")+'<div class="actions"><button class="toggle overall" data-k="'+kk+'">⭐ Overall</button><button class="toggle boost" data-k="'+kk+'">🟢 DRS</button><button class="lock" data-k="'+kk+'">LOCK PICK</button></div>')+'</div>'}).join("")+'</div></article>';
@@ -195,7 +205,7 @@ function picks(){let p=Object.values(state.picks);document.getElementById("pickg
 async function loadLiveF1(){
   try{
     const r=await fetch("/api/f1"); if(!r.ok) throw new Error("HTTP "+r.status);
-    const d=await r.json(), ev=DATA.find(x=>x.id==="f1"), market=ev.markets[0]; liveF1={open:!!d.marketOpen,ready:!!d.marketReady,lockAt:d.lockAt};
+    const d=await r.json(), ev=DATA.find(x=>x.id==="f1"), market=ev.markets[0]; liveF1={open:!!d.marketOpen,ready:!!d.marketReady,lockAt:d.lockAt,latestResult:d.latestResult||null};
     market.entries=d.drivers.map(x=>[String(x.number),x.name,x.multiplier]);
     if(d.marketReady){
       ev.event="Singapore Grand Prix · live market";
