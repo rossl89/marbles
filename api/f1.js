@@ -94,9 +94,15 @@ module.exports=async function handler(req,res){
     for(const [id,m] of meta){const p=price(H.get(id)||[],Q.get(id)||[],P.get(id));out.push({...m,...p,multiplier:+p.final.toFixed(3),races:(H.get(id)||[]).length})}
     out.sort((a,b)=>a.multiplier-b.multiplier);
     res.setHeader("Cache-Control","no-store, max-age=0");
+    const latestRace=allRaces.length?allRaces[allRaces.length-1]:null;
     // Server-authoritative lock derived from the next round's first official on-track session.
     // No race-specific dates are hard-coded: each rollover reads the 2026 schedule automatically.
-    const nextRound=scheduleRounds.find(x=>+x.round===targetRound)||null;
+    // Match the next event chronologically: legacy and Alpha round numbering can differ.
+    const latestCompletedDate=latestRace?.date?Date.parse(latestRace.date+"T23:59:59Z"):NaN;
+    const nextRound=scheduleRounds
+      .filter(x=>Number.isFinite(Date.parse((x.date||"")+"T"+(x.time||"00:00:00Z"))))
+      .sort((a,b)=>Date.parse((a.date||"")+"T"+(a.time||"00:00:00Z"))-Date.parse((b.date||"")+"T"+(b.time||"00:00:00Z")))
+      .find(x=>!Number.isFinite(latestCompletedDate)||Date.parse((x.date||"")+"T"+(x.time||"00:00:00Z"))>latestCompletedDate)||null;
     const namedSessions=nextRound?[
       ["Practice 1",nextRound.FirstPractice],["Practice 2",nextRound.SecondPractice],["Practice 3",nextRound.ThirdPractice],
       ["Sprint Shootout",nextRound.SprintShootout],["Sprint Qualifying",nextRound.SprintQualifying],["Sprint",nextRound.Sprint],
@@ -111,7 +117,7 @@ module.exports=async function handler(req,res){
     const now=Date.now();
     const marketReady=throughRound>0 && !!nextRound && !!lockAt;
     const marketOpen=marketReady && now<lockAt;
-    const latestRace=allRaces.length?allRaces[allRaces.length-1]:null;
+
     const latestResult=latestRace?{
       round:+latestRace.round,
       raceName:latestRace.raceName,
