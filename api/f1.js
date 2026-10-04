@@ -13,7 +13,7 @@ function price(rh,qh,prev){
   return {season,recent,qual,rating,confidence,raw,final};
 }
 async function j(path){const r=await fetch("https://api.jolpi.ca/ergast/f1/"+path);if(!r.ok)throw new Error("Jolpica legacy "+r.status);return r.json()}
-async function alpha(path){const r=await fetch("https://api.jolpi.ca/ergast/f1/alpha/"+path);if(!r.ok)throw new Error("Jolpica alpha "+r.status);return r.json()}
+async function alpha(path){const r=await fetch("https://api.jolpi.ca/f1/alpha/"+path);if(!r.ok)throw new Error("Jolpica alpha "+r.status);return r.json()}
 const get=(o,...keys)=>{for(const k of keys){if(o&&o[k]!=null)return o[k]}};
 function normalizeAlphaResult(x){
   const d=get(x,"driver","Driver")||{}, t=get(x,"team","constructor","Constructor")||{};
@@ -37,25 +37,19 @@ module.exports=async function handler(req,res){
     const [rr,qq]=await Promise.all([j("2026/results.json?limit=2000"),j("2026/qualifying.json?limit=2000")]);
     const allRaces=rr.MRData.RaceTable.Races.sort((a,b)=>+a.round-+b.round);
 
-    // Round 16 is officially complete, but Jolpica's legacy 2026 feed is currently stale.
-    // Use the official published Sepang classification as a temporary authoritative bridge.
-    // Remove this bridge as soon as the upstream feed contains Round 16.
-    const officialRound16={
-      round:"16",raceName:"Bahrain Grand Prix in Malaysia",date:"2026-10-04",
-      Circuit:{circuitName:"Sepang International Circuit"},
-      Results:[
-        ["1","3","Max","Verstappen","Red Bull Racing","Finished"],
-        ["2","12","Kimi","Antonelli","Mercedes","Finished"],
-        ["3","44","Lewis","Hamilton","Ferrari","Finished"],
-        ["4","16","Charles","Leclerc","Ferrari","Finished"],
-        ["5","6","Isack","Hadjar","Red Bull Racing","Finished"],
-        ["6","81","Oscar","Piastri","McLaren","Finished"],
-        ["7","30","Liam","Lawson","Racing Bulls","Finished"],
-        ["8","14","Fernando","Alonso","Aston Martin","Finished"],
-        ["9","1","Lando","Norris","McLaren","Finished"]
-      ].map(([position,number,givenName,familyName,team,status])=>({position,number,status,Driver:{driverId:(givenName+"-"+familyName).toLowerCase(),givenName,familyName},Constructor:{name:team}}))
-    };
-    if(!allRaces.some(r=>+r.round===16)) allRaces.push(officialRound16);
+    // Alpha is the authoritative current-season results source; legacy remains history fallback.
+    const alphaRounds=await Promise.all(Array.from({length:24},(_,i)=>i+1).map(async round=>{
+      try{
+        const payload=await alpha("results/"+round+"/R/");
+        const parsed=alphaPayload(payload,round);
+        return parsed.results.length?parsed:null;
+      }catch{return null}
+    }));
+    for(const ar of alphaRounds.filter(Boolean)){
+      const race={round:String(ar.round),raceName:ar.raceName,date:ar.date,Circuit:{circuitName:ar.circuit},Results:ar.results.map(x=>({position:String(x.position),number:x.number,status:x.status,Driver:{driverId:x.name.toLowerCase().replace(/[^a-z0-9]+/g,"-"),givenName:x.name.split(" ").slice(0,-1).join(" "),familyName:x.name.split(" ").slice(-1)[0]},Constructor:{name:x.team}}))};
+      const ix=allRaces.findIndex(r=>+r.round===+ar.round);
+      if(ix>=0) allRaces[ix]=race; else allRaces.push(race);
+    }
     allRaces.sort((a,b)=>+a.round-+b.round);
     // Never consume a partially completed weekend. Advance only when an official race classification exists.
     const completedRounds=allRaces.map(r=>+r.round);
@@ -83,7 +77,7 @@ module.exports=async function handler(req,res){
     // Server-authoritative Singapore lock. Client clocks cannot reopen the market.
     const singaporeLock=Date.parse("2026-10-09T08:30:00Z"); // 16:30 SGT
     const now=Date.now();
-    const marketReady=throughRound>=16;
+    const marketReady=throughRound>0;
     const marketOpen=marketReady && now<singaporeLock;
     const latestRace=allRaces.length?allRaces[allRaces.length-1]:null;
     const latestResult=latestRace?{
