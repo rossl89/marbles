@@ -69,46 +69,61 @@ module.exports=async function handler(req,res){
     const allRaces=rr.MRData.RaceTable.Races.sort((a,b)=>+a.round-+b.round);
     const scheduleRounds=seasonSchedule?.MRData?.RaceTable?.Races||[];
 
-    // Discover the opaque Alpha round_id from Alpha's schedule response. Its shape has
-    // changed during the preview, so recursively collect objects carrying both a round
-    // number and a round_* id instead of assuming one fixed envelope.
-    let alphaSchedule=null;
-    try{ alphaSchedule=await alpha("schedules/2026/") }catch{}
-    const foundRoundIds=new Map();
-    (function walk(v){
-      if(!v||typeof v!=="object") return;
-      if(Array.isArray(v)){v.forEach(walk);return}
-      const vals=Object.values(v);
-      const rid=vals.find(x=>typeof x==="string"&&/^round_[A-Za-z0-9_-]+$/.test(x));
-      const rn=+(get(v,"round","round_number","number")||get(v?.round_info||{},"round","round_number","number")||0);
-      if(rid&&rn) foundRoundIds.set(rn,rid);
-      vals.forEach(walk);
-    })(alphaSchedule);
-
-    const alphaRounds=await Promise.all([...foundRoundIds].map(async ([round,id])=>{
-      try{
-        const [racePayload,qPayload,sPayload]=await Promise.all([
-          alpha("results/"+encodeURIComponent(id)+"/R/").catch(()=>null),
-          alpha("results/"+encodeURIComponent(id)+"/Q/").catch(()=>null),
-          alpha("results/"+encodeURIComponent(id)+"/S/").catch(()=>null)
-        ]);
-        if(!racePayload) return null;
-        const parsed=alphaPayload(racePayload,round);
-        parsed.qualifying=qPayload?alphaSessionPayload(qPayload,round,"Q"):[];
-        parsed.sprint=sPayload?alphaSessionPayload(sPayload,round,"S"):[];
-        return parsed.results.length?parsed:null;
-      }catch{return null}
-    }));
-
-    // Alpha's round number is the reliable join key to the canonical schedule; its
-    // race metadata/date can be incomplete. Never require Alpha metadata to match.
-    for(const ar of alphaRounds.filter(Boolean)){
-      const calendar=scheduleRounds.find(r=>+r.round===+ar.round);
+    // Stable historical ingestion: OpenF1 provides free session results from 2023 onward.
+    // Jolpica legacy remains the canonical calendar and an early-season fallback only.
+    async function of(path){
+      const r=await fetch("https://api.openf1.org/v1/"+path,{headers:{"User-Agent":"MarblesFantasy/0.1"}});
+      if(!r.ok) throw new Error("OpenF1 "+r.status);
+      return r.json();
+    }
+    const [meetings,sessions,drivers]=await Promise.all([
+      of("meetings?year=2026"),
+      of("sessions?year=2026"),
+      of("drivers?session_key=latest").catch(()=>[])
+    ]);
+    const driverByNumber=new Map();
+    for(const d of drivers||[]) driverByNumber.set(String(d.driver_number),d);
+    const meetingByKey=new Map((meetings||[]).map(m=>[m.meeting_key,m]));
+    const sessionGroups=new Map();
+    for(const s of sessions||[]){
+      if(s.is_cancelled) continue;
+      const a=sessionGroups.get(s.meeting_key)||[]; a.push(s); sessionGroups.set(s.meeting_key,a);
+    }
+    const openf1Rounds=[];
+    for(const [meetingKey,ss] of sessionGroups){
+      const raceSession=ss.find(s=>String(s.session_name).toLowerCase()==="race");
+      if(!raceSession) continue;
+      const raceRows=await of("session_result?session_key="+raceSession.session_key).catch(()=>[]);
+      if(!raceRows?.length) continue;
+      const meeting=meetingByKey.get(meetingKey)||{};
+      // Join to canonical calendar chronologically; OpenF1 meeting/session dates are authoritative
+      // for completion, Jolpica calendar supplies championship round numbering.
+      const raceDate=String(raceSession.date_start||"").slice(0,10);
+      let calendar=scheduleRounds.find(r=>r.date===raceDate);
+      if(!calendar){
+        const t=Date.parse(raceDate+"T12:00:00Z");
+        calendar=scheduleRounds.map(r=>({r,d:Math.abs(Date.parse(r.date+"T12:00:00Z")-t)})).filter(x=>x.d<=3*86400000).sort((a,b)=>a.d-b.d)[0]?.r;
+      }
       if(!calendar) continue;
-      const canonicalRound=+calendar.round;
-      const race={round:String(canonicalRound),raceName:calendar.raceName||ar.raceName,date:calendar.date||ar.date,Circuit:{circuitName:calendar.Circuit?.circuitName||ar.circuit},Results:ar.results.map(x=>({position:String(x.position),number:x.number,status:x.status,Driver:{driverId:canonicalId(x.name,x.number),givenName:x.name.split(" ").slice(0,-1).join(" "),familyName:x.name.split(" ").slice(-1)[0]},Constructor:{name:x.team}})),AlphaQualifying:ar.qualifying||[],AlphaSprint:ar.sprint||[]};
-      const ix=allRaces.findIndex(r=>+r.round===canonicalRound);
+      const qSession=ss.filter(s=>String(s.session_type).toLowerCase()==="qualifying"||String(s.session_name).toLowerCase()==="qualifying").sort((a,b)=>Date.parse(b.date_start)-Date.parse(a.date_start))[0];
+      const sprintSession=ss.find(s=>String(s.session_name).toLowerCase()==="sprint");
+      const [qRows,sRows]=await Promise.all([
+        qSession?of("session_result?session_key="+qSession.session_key).catch(()=>[]):[],
+        sprintSession?of("session_result?session_key="+sprintSession.session_key).catch(()=>[]):[]
+      ]);
+      const mk=(row)=>{
+        const num=String(row.driver_number);
+        const d=driverByNumber.get(num)||{};
+        const name=d.full_name||d.broadcast_name||("Car "+num);
+        return {position:+row.position||0,number:num,name,team:d.team_name||"",status:row.dsq?"Disqualified":row.dns?"DNS":row.dnf?"Retired":"Finished"};
+      };
+      const mappedRace=raceRows.map(mk).filter(x=>x.position>0);
+      const mappedQ=(qRows||[]).map(mk).filter(x=>x.position>0);
+      const mappedS=(sRows||[]).map(mk).filter(x=>x.position>0);
+      const race={round:String(calendar.round),raceName:calendar.raceName,date:calendar.date,Circuit:calendar.Circuit,Results:mappedRace.map(x=>({position:String(x.position),number:x.number,status:x.status,Driver:{driverId:canonicalId(x.name,x.number),givenName:x.name.split(" ").slice(0,-1).join(" "),familyName:x.name.split(" ").slice(-1)[0]},Constructor:{name:x.team}})),AlphaQualifying:mappedQ,AlphaSprint:mappedS};
+      const ix=allRaces.findIndex(r=>+r.round===+calendar.round);
       if(ix>=0) allRaces[ix]=race; else allRaces.push(race);
+      openf1Rounds.push(+calendar.round);
     }
     allRaces.sort((a,b)=>+a.round-+b.round);
     // Never consume a partially completed weekend. Advance only when an official race classification exists.
@@ -179,6 +194,6 @@ module.exports=async function handler(req,res){
         status:x.status||""
       }))
     }:null;
-    res.status(200).json({engine:"1.0",season:2026,throughRound,targetRound,marketReady,marketOpen,serverNow:new Date(now).toISOString(),lockAt:lockAt?new Date(lockAt).toISOString():null,nextEvent:nextRound?{round:targetRound,name:nextRound.raceName||("Round "+targetRound),firstSession:firstSession?.name||null}:null,sourceStatus:{legacyCompleted:rr.MRData.RaceTable.Races.length,alphaRoundIds:foundRoundIds.size,alphaCompleted:alphaRounds.filter(Boolean).length,alphaParsedRounds:alphaRounds.filter(Boolean).map(x=>x.round).sort((a,b)=>a-b),alphaMissingRounds:[...foundRoundIds.keys()].filter(n=>!alphaRounds.some(x=>x&&x.round===n)).sort((a,b)=>a-b),scheduleRounds:scheduleRounds.length,completedCalendarRounds:[...completedSet].sort((a,b)=>a-b)},leakageGuard:"Only completed race weekends are consumed; partial current-weekend sessions are excluded",latestResult,drivers:out});
+    res.status(200).json({engine:"1.0",season:2026,throughRound,targetRound,marketReady,marketOpen,serverNow:new Date(now).toISOString(),lockAt:lockAt?new Date(lockAt).toISOString():null,nextEvent:nextRound?{round:targetRound,name:nextRound.raceName||("Round "+targetRound),firstSession:firstSession?.name||null}:null,sourceStatus:{provider:"OpenF1 historical session_result",legacyCompleted:rr.MRData.RaceTable.Races.length,openf1Meetings:(meetings||[]).length,openf1Sessions:(sessions||[]).length,openf1CompletedRounds:[...new Set(openf1Rounds)].sort((a,b)=>a-b),scheduleRounds:scheduleRounds.length,driverMetadata:(drivers||[]).length,completedCalendarRounds:[...completedSet].sort((a,b)=>a-b)},leakageGuard:"Only completed race weekends are consumed; partial current-weekend sessions are excluded",latestResult,drivers:out});
   }catch(e){res.status(500).json({error:e.message})}
 }
