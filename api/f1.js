@@ -159,7 +159,7 @@ module.exports=async function handler(req,res){
     const throughRound=storedThroughRound||upstreamThroughRound;
     const targetRound=throughRound+1;
     const storedContiguous=storedThroughRound>0;
-    const races=(storedContiguous?stored.filter(x=>+x.round<=storedThroughRound).map(x=>({round:String(x.round),raceName:x.race_name,date:x.race_date,Circuit:{circuitName:x.circuit||""},Results:(x.race_results||[]).map(y=>({position:String(y.position),number:String(y.number||""),status:y.status||"Finished",Driver:{driverId:canonicalId(y.name,y.number),givenName:String(y.name||"").split(" ").slice(0,-1).join(" "),familyName:String(y.name||"").split(" ").slice(-1)[0]},Constructor:{name:y.team||""}})),AlphaQualifying:x.qualifying_results||[],AlphaSprint:x.sprint_results||[]})):allRaces.filter(r=>+r.round<=throughRound)).sort((a,b)=>+a.round-+b.round);
+    const races=(storedContiguous?stored.filter(x=>+x.round<=throughRound).map(x=>({round:String(x.round),raceName:x.race_name,date:x.race_date,Circuit:{circuitName:x.circuit||""},Results:(x.race_results||[]).map(y=>({position:String(y.position),number:String(y.number||""),status:y.status||"Finished",Driver:{driverId:canonicalId(y.name,y.number),givenName:String(y.name||"").split(" ").slice(0,-1).join(" "),familyName:String(y.name||"").split(" ").slice(-1)[0]},Constructor:{name:y.team||""}})),AlphaQualifying:x.qualifying_results||[],AlphaSprint:x.sprint_results||[]})):allRaces.filter(r=>+r.round<=throughRound)).sort((a,b)=>+a.round-+b.round);
     const quals=new Map(qq.MRData.RaceTable.Races.filter(r=>+r.round<=throughRound).map(r=>[+r.round,r.QualifyingResults||[]]));
     const H=new Map(), Q=new Map(), P=new Map(), meta=new Map(), sprintCounts=new Map();
     for(const race of races){
