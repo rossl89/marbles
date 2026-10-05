@@ -150,12 +150,16 @@ module.exports=async function handler(req,res){
     }
     // Never consume a partially completed weekend. Advance only when an official race classification exists.
     const completedSet=new Set(allRaces.filter(r=>r.Results?.length).map(r=>+r.round));
-    let throughRound=0;
-    while(completedSet.has(throughRound+1)) throughRound++;
-    const targetRound=throughRound+1;
+    let upstreamThroughRound=0;
+    while(completedSet.has(upstreamThroughRound+1)) upstreamThroughRound++;
     const storedByRound=new Map(stored.map(x=>[+x.round,x]));
-    const storedContiguous=Array.from({length:throughRound},(_,i)=>i+1).every(n=>storedByRound.has(n));
-    const races=(storedContiguous?stored.map(x=>({round:String(x.round),raceName:x.race_name,date:x.race_date,Circuit:{circuitName:x.circuit||""},Results:(x.race_results||[]).map(y=>({position:String(y.position),number:String(y.number||""),status:y.status||"Finished",Driver:{driverId:canonicalId(y.name,y.number),givenName:String(y.name||"").split(" ").slice(0,-1).join(" "),familyName:String(y.name||"").split(" ").slice(-1)[0]},Constructor:{name:y.team||""}})),AlphaQualifying:x.qualifying_results||[],AlphaSprint:x.sprint_results||[]})):allRaces.filter(r=>+r.round<=throughRound)).sort((a,b)=>+a.round-+b.round);
+    let storedThroughRound=0;
+    while(storedByRound.has(storedThroughRound+1)) storedThroughRound++;
+    // Validated stored history wins outright when present.
+    const throughRound=storedThroughRound||upstreamThroughRound;
+    const targetRound=throughRound+1;
+    const storedContiguous=storedThroughRound>0;
+    const races=(storedContiguous?stored.filter(x=>+x.round<=storedThroughRound).map(x=>({round:String(x.round),raceName:x.race_name,date:x.race_date,Circuit:{circuitName:x.circuit||""},Results:(x.race_results||[]).map(y=>({position:String(y.position),number:String(y.number||""),status:y.status||"Finished",Driver:{driverId:canonicalId(y.name,y.number),givenName:String(y.name||"").split(" ").slice(0,-1).join(" "),familyName:String(y.name||"").split(" ").slice(-1)[0]},Constructor:{name:y.team||""}})),AlphaQualifying:x.qualifying_results||[],AlphaSprint:x.sprint_results||[]})):allRaces.filter(r=>+r.round<=throughRound)).sort((a,b)=>+a.round-+b.round);
     const quals=new Map(qq.MRData.RaceTable.Races.filter(r=>+r.round<=throughRound).map(r=>[+r.round,r.QualifyingResults||[]]));
     const H=new Map(), Q=new Map(), P=new Map(), meta=new Map(), sprintCounts=new Map();
     for(const race of races){
