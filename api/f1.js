@@ -156,8 +156,41 @@ module.exports=async function handler(req,res){
     }
     allRaces.sort((a,b)=>+a.round-+b.round);
     const storedLoad=await storedF1();
-    const storedRows=storedLoad.rows;
+    const rawStoredRows=storedLoad.rows;
     const supabaseDiagnostic=storedLoad.diagnostic;
+
+    // A validated snapshot owns the classifications, but never the championship identity.
+    // Resolve every stored race back onto the canonical 2026 calendar by race date first;
+    // only fall back to its legacy round when the date cannot be resolved.
+    const scheduleByRound=new Map(scheduleRounds.map(x=>[+x.round,x]));
+    const scheduleByDate=new Map(scheduleRounds.filter(x=>x.date).map(x=>[String(x.date).slice(0,10),x]));
+    const canonicalStoredRows=rawStoredRows.map(x=>{
+      const raceDate=String(x.race_date||"").slice(0,10);
+      const calendar=scheduleByDate.get(raceDate)||scheduleByRound.get(+x.round)||null;
+      return {...x,
+        round:calendar?+calendar.round:+x.round,
+        race_name:calendar?.raceName||x.race_name,
+        race_date:calendar?.date||x.race_date,
+        circuit:calendar?.Circuit?.circuitName||x.circuit||"",
+        sprint_results:[]
+      };
+    }).sort((a,b)=>+a.round-+b.round);
+
+    // Historical snapshots created before the chronology fix can contain valid Sprint
+    // classifications attached to the wrong GP row. Preserve the Sprint payloads in their
+    // original chronological order, then attach them only to canonical Sprint weekends.
+    const storedSprintPayloads=rawStoredRows
+      .slice().sort((a,b)=>+a.round-+b.round)
+      .map(x=>x.sprint_results||[]).filter(x=>x.length);
+    const canonicalSprintRounds=scheduleRounds
+      .filter(x=>x.Sprint&&canonicalStoredRows.some(r=>+r.round===+x.round))
+      .sort((a,b)=>+a.round-+b.round);
+    for(let i=0;i<Math.min(storedSprintPayloads.length,canonicalSprintRounds.length);i++){
+      const row=canonicalStoredRows.find(r=>+r.round===+canonicalSprintRounds[i].round);
+      if(row) row.sprint_results=storedSprintPayloads[i];
+    }
+    const storedRows=canonicalStoredRows;
+
     if(storedRows.length){
       for(const x of storedRows){
         const race={round:String(x.round),raceName:x.race_name,date:x.race_date,Circuit:{circuitName:x.circuit||""},Results:(x.race_results||[]).map(y=>({position:String(y.position),number:String(y.number||""),status:y.status||"Finished",Driver:{driverId:canonicalId(y.name,y.number),givenName:String(y.name||"").split(" ").slice(0,-1).join(" "),familyName:String(y.name||"").split(" ").slice(-1)[0]},Constructor:{name:y.team||""}})),AlphaQualifying:x.qualifying_results||[],AlphaSprint:x.sprint_results||[]};
@@ -248,6 +281,6 @@ module.exports=async function handler(req,res){
         status:x.status||""
       }))
     }:null;
-    res.status(200).json({build:"f1-history-v2",engine:"1.0",season:2026,throughRound,targetRound,storedCount:storedRows.length,storedThroughRound,historyRounds:races.map(r=>+r.round),supabaseDiagnostic,marketReady,marketOpen,serverNow:new Date(now).toISOString(),lockAt:lockAt?new Date(lockAt).toISOString():null,nextEvent:nextRound?{round:targetRound,name:nextRound.raceName||("Round "+targetRound),firstSession:firstSession?.name||null}:null,sourceStatus:{provider:storedRows.length?"Supabase validated snapshots + upstream fallback":"OpenF1 historical session_result",storedValidatedRounds:storedRows.map(x=>x.round),legacyCompleted:rr.MRData.RaceTable.Races.length,openf1Meetings:(meetings||[]).length,openf1Sessions:(sessions||[]).length,openf1CompletedRounds:openf1Rounds.map((_,i)=>i+1),scheduleRounds:scheduleRounds.length,driverMetadata:(drivers||[]).length,completedCalendarRounds:[...completedSet].sort((a,b)=>a-b)},leakageGuard:"Only completed race weekends are consumed; partial current-weekend sessions are excluded",latestResult,drivers:out});
+    res.status(200).json({build:"f1-history-v2",engine:"1.0",season:2026,throughRound,targetRound,storedCount:rawStoredRows.length,storedThroughRound,historyRounds:races.map(r=>+r.round),supabaseDiagnostic,marketReady,marketOpen,serverNow:new Date(now).toISOString(),lockAt:lockAt?new Date(lockAt).toISOString():null,nextEvent:nextRound?{round:targetRound,name:nextRound.raceName||("Round "+targetRound),firstSession:firstSession?.name||null}:null,sourceStatus:{provider:storedRows.length?"Supabase validated snapshots + upstream fallback":"OpenF1 historical session_result",storedValidatedRounds:rawStoredRows.map(x=>x.round),storedCanonicalRounds:storedRows.map(x=>x.round),sprintCanonicalRounds:canonicalSprintRounds.slice(0,storedSprintPayloads.length).map(x=>+x.round),legacyCompleted:rr.MRData.RaceTable.Races.length,openf1Meetings:(meetings||[]).length,openf1Sessions:(sessions||[]).length,openf1CompletedRounds:openf1Rounds.map((_,i)=>i+1),scheduleRounds:scheduleRounds.length,driverMetadata:(drivers||[]).length,completedCalendarRounds:[...completedSet].sort((a,b)=>a-b)},leakageGuard:"Only completed race weekends are consumed; partial current-weekend sessions are excluded",latestResult,drivers:out});
   }catch(e){res.status(500).json({error:e.message})}
 }
