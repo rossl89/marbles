@@ -68,7 +68,7 @@ async function storedF1(){
   const diagnostic={supabaseConfigured:Boolean(url&&key),supabaseStatus:null,supabaseRows:0};
   if(!url||!key) return {rows:[],diagnostic};
   try{
-    const r=await fetch(url+"/rest/v1/f1_result_snapshots?season=eq.2026&validated=eq.true&select=*&order=round.asc",{headers:{apikey:key,Authorization:"Bearer "+key}});
+    const r=await fetch(url+"/rest/v1/f1_result_snapshots?season=eq.2026&validated=eq.true&select=*&order=round.asc",{headers:{apikey:key,Authorization:"Bearer "+key,"Accept-Profile":"public","Content-Profile":"public"}});
     diagnostic.supabaseStatus=r.status;
     if(!r.ok){
       let err={};
