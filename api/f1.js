@@ -70,7 +70,14 @@ async function storedF1(){
   try{
     const r=await fetch(url+"/rest/v1/f1_result_snapshots?season=eq.2026&validated=eq.true&select=*&order=round.asc",{headers:{apikey:key,Authorization:"Bearer "+key}});
     diagnostic.supabaseStatus=r.status;
-    if(!r.ok) return {rows:[],diagnostic};
+    if(!r.ok){
+      let err={};
+      try{ err=await r.json(); }catch(_){ err={message:"Non-JSON response from Supabase"}; }
+      diagnostic.supabaseErrorCode=err?.code||null;
+      diagnostic.supabaseErrorMessage=err?.message||null;
+      diagnostic.supabaseErrorHint=err?.hint||null;
+      return {rows:[],diagnostic};
+    }
     const rows=await r.json();
     diagnostic.supabaseRows=Array.isArray(rows)?rows.length:0;
     return {rows:Array.isArray(rows)?rows:[],diagnostic};
