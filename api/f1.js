@@ -179,7 +179,7 @@ module.exports=async function handler(req,res){
     const storedContiguous=storedThroughRound>0;
     const races=(storedContiguous?storedRows.filter(x=>+x.round<=throughRound).map(x=>({round:String(x.round),raceName:x.race_name,date:x.race_date,Circuit:{circuitName:x.circuit||""},Results:(x.race_results||[]).map(y=>({position:String(y.position),number:String(y.number||""),status:y.status||"Finished",Driver:{driverId:canonicalId(y.name,y.number),givenName:String(y.name||"").split(" ").slice(0,-1).join(" "),familyName:String(y.name||"").split(" ").slice(-1)[0]},Constructor:{name:y.team||""}})),AlphaQualifying:x.qualifying_results||[],AlphaSprint:x.sprint_results||[]})):allRaces.filter(r=>+r.round<=throughRound)).sort((a,b)=>+a.round-+b.round);
     const quals=new Map(qq.MRData.RaceTable.Races.filter(r=>+r.round<=throughRound).map(r=>[+r.round,r.QualifyingResults||[]]));
-    const H=new Map(), Q=new Map(), P=new Map(), meta=new Map(), sprintCounts=new Map();
+    const H=new Map(), Q=new Map(), S=new Map(), P=new Map(), meta=new Map(), sprintCounts=new Map();
     for(const race of races){
       const n=race.Results.length;
       const legacyQ=quals.get(+race.round)||[];
@@ -187,20 +187,22 @@ module.exports=async function handler(req,res){
       const qn=q.length;
       // Price the event using history available BEFORE this race, then update histories after it.
       for(const x of race.Results){
-        const id=canonicalId(x.Driver.givenName+" "+x.Driver.familyName,x.number), rh=H.get(id)||[], qh=Q.get(id)||[];
-        const p=price(rh,qh,P.has(id)?P.get(id):null); P.set(id,p.final);
+        const id=canonicalId(x.Driver.givenName+" "+x.Driver.familyName,x.number), rh=H.get(id)||[], qh=Q.get(id)||[], sh=S.get(id)||[];
+        const weightedRh=rh.concat(sh.map(v=>({sprint:v}))).reduce((a,v)=>{if(typeof v==="number")a.push(v);else if(a.length)a[a.length-1]=(a[a.length-1]+v.sprint)/2;return a},[]);
+        const p=price(weightedRh,qh,P.has(id)?P.get(id):null); P.set(id,p.final);
         meta.set(id,{id,number:x.number,name:x.Driver.givenName+" "+x.Driver.familyName,team:x.Constructor?.name||"",...p});
       }
       for(const x of race.Results){const id=canonicalId(x.Driver.givenName+" "+x.Driver.familyName,x.number),h=H.get(id)||[];h.push(finished(x.status)?perf(+x.position,n):.35);H.set(id,h)}
-      // Sprint is a half-weight race-form observation: blend 50% sprint performance with
-      // 50% neutral (0.5), so it contributes without counting like a full Grand Prix.
+      // Keep Sprints separate from Grand Prix history. A Sprint modifies that weekend's
+      // race-form observation at 50% weight, but never consumes an extra recent-race slot
+      // or increases the evidence count.
       const sprint=race.AlphaSprint||[], sn=sprint.length;
-      for(const x of sprint){const id=canonicalId(x.name,x.number),h=H.get(id)||[];const sp=finished(x.status)?perf(+x.position,sn):.35;h.push(.5+.5*(sp-.5));H.set(id,h);sprintCounts.set(id,(sprintCounts.get(id)||0)+1)}
+      for(const x of sprint){const id=canonicalId(x.name,x.number),s=S.get(id)||[];const sp=finished(x.status)?perf(+x.position,sn):.35;s.push(sp);S.set(id,s);sprintCounts.set(id,(sprintCounts.get(id)||0)+1)}
       for(const x of q){const id=(x.Driver.givenName||x.Driver.familyName)?canonicalId((x.Driver.givenName||"")+" "+(x.Driver.familyName||""),x.number):x.Driver.driverId,h=Q.get(id)||[];h.push(perf(+x.position,qn));Q.set(id,h)}
     }
     // Calculate the next market only from completed weekends.
     const out=[];
-    for(const [id,m] of meta){const p=price(H.get(id)||[],Q.get(id)||[],P.get(id));out.push({...m,...p,multiplier:+p.final.toFixed(3),raceHistory:(H.get(id)||[]).map(x=>+x.toFixed(6)),qualHistory:(Q.get(id)||[]).map(x=>+x.toFixed(6)),sprints:sprintCounts.get(id)||0,races:(H.get(id)||[]).length,raceObservations:(H.get(id)||[]).length-(sprintCounts.get(id)||0)})}
+    for(const [id,m] of meta){const rh=H.get(id)||[], sh=S.get(id)||[];const weightedRh=rh.map(x=>x);if(sh.length){let si=0;for(let i=0;i<races.length&&si<sh.length;i++){const sr=races[i].AlphaSprint||[];if(sr.some(x=>canonicalId(x.name,x.number)===id)){const gpIndex=Math.min(i,weightedRh.length-1);if(gpIndex>=0)weightedRh[gpIndex]=(weightedRh[gpIndex]+sh[si++])/2;}}}const p=price(weightedRh,Q.get(id)||[],P.get(id));out.push({...m,...p,multiplier:+p.final.toFixed(3),raceHistory:weightedRh.map(x=>+x.toFixed(6)),qualHistory:(Q.get(id)||[]).map(x=>+x.toFixed(6)),sprints:sprintCounts.get(id)||0,races:rh.length,raceObservations:rh.length})}
     out.sort((a,b)=>a.multiplier-b.multiplier);
     res.setHeader("Cache-Control","no-store, max-age=0");
     const latestRace=races.length?races[races.length-1]:null;
