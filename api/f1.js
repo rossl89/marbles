@@ -149,10 +149,10 @@ module.exports=async function handler(req,res){
     }
     allRaces.sort((a,b)=>+a.round-+b.round);
     const storedLoad=await storedF1();
-    const stored=storedLoad.rows;
+    const storedRows=storedLoad.rows;
     const supabaseDiagnostic=storedLoad.diagnostic;
-    if(stored.length){
-      for(const x of stored){
+    if(storedRows.length){
+      for(const x of storedRows){
         const race={round:String(x.round),raceName:x.race_name,date:x.race_date,Circuit:{circuitName:x.circuit||""},Results:(x.race_results||[]).map(y=>({position:String(y.position),number:String(y.number||""),status:y.status||"Finished",Driver:{driverId:canonicalId(y.name,y.number),givenName:String(y.name||"").split(" ").slice(0,-1).join(" "),familyName:String(y.name||"").split(" ").slice(-1)[0]},Constructor:{name:y.team||""}})),AlphaQualifying:x.qualifying_results||[],AlphaSprint:x.sprint_results||[]};
         const ix=allRaces.findIndex(r=>+r.round===+x.round);
         if(ix>=0) allRaces[ix]=race; else allRaces.push(race);
@@ -163,14 +163,14 @@ module.exports=async function handler(req,res){
     const completedSet=new Set(allRaces.filter(r=>r.Results?.length).map(r=>+r.round));
     let upstreamThroughRound=0;
     while(completedSet.has(upstreamThroughRound+1)) upstreamThroughRound++;
-    const storedByRound=new Map(stored.map(x=>[+x.round,x]));
+    const storedByRound=new Map(storedRows.map(x=>[+x.round,x]));
     let storedThroughRound=0;
     while(storedByRound.has(storedThroughRound+1)) storedThroughRound++;
     // Validated stored history wins outright when present.
     const throughRound=storedThroughRound||upstreamThroughRound;
     const targetRound=throughRound+1;
     const storedContiguous=storedThroughRound>0;
-    const races=(storedContiguous?stored.filter(x=>+x.round<=throughRound).map(x=>({round:String(x.round),raceName:x.race_name,date:x.race_date,Circuit:{circuitName:x.circuit||""},Results:(x.race_results||[]).map(y=>({position:String(y.position),number:String(y.number||""),status:y.status||"Finished",Driver:{driverId:canonicalId(y.name,y.number),givenName:String(y.name||"").split(" ").slice(0,-1).join(" "),familyName:String(y.name||"").split(" ").slice(-1)[0]},Constructor:{name:y.team||""}})),AlphaQualifying:x.qualifying_results||[],AlphaSprint:x.sprint_results||[]})):allRaces.filter(r=>+r.round<=throughRound)).sort((a,b)=>+a.round-+b.round);
+    const races=(storedContiguous?storedRows.filter(x=>+x.round<=throughRound).map(x=>({round:String(x.round),raceName:x.race_name,date:x.race_date,Circuit:{circuitName:x.circuit||""},Results:(x.race_results||[]).map(y=>({position:String(y.position),number:String(y.number||""),status:y.status||"Finished",Driver:{driverId:canonicalId(y.name,y.number),givenName:String(y.name||"").split(" ").slice(0,-1).join(" "),familyName:String(y.name||"").split(" ").slice(-1)[0]},Constructor:{name:y.team||""}})),AlphaQualifying:x.qualifying_results||[],AlphaSprint:x.sprint_results||[]})):allRaces.filter(r=>+r.round<=throughRound)).sort((a,b)=>+a.round-+b.round);
     const quals=new Map(qq.MRData.RaceTable.Races.filter(r=>+r.round<=throughRound).map(r=>[+r.round,r.QualifyingResults||[]]));
     const H=new Map(), Q=new Map(), P=new Map(), meta=new Map(), sprintCounts=new Map();
     for(const race of races){
@@ -233,6 +233,6 @@ module.exports=async function handler(req,res){
         status:x.status||""
       }))
     }:null;
-    res.status(200).json({build:"f1-history-v2",engine:"1.0",season:2026,throughRound,targetRound,storedCount:stored.length,storedThroughRound,historyRounds:races.map(r=>+r.round),supabaseDiagnostic,marketReady,marketOpen,serverNow:new Date(now).toISOString(),lockAt:lockAt?new Date(lockAt).toISOString():null,nextEvent:nextRound?{round:targetRound,name:nextRound.raceName||("Round "+targetRound),firstSession:firstSession?.name||null}:null,sourceStatus:{provider:stored.length?"Supabase validated snapshots + upstream fallback":"OpenF1 historical session_result",storedValidatedRounds:stored.map(x=>x.round),legacyCompleted:rr.MRData.RaceTable.Races.length,openf1Meetings:(meetings||[]).length,openf1Sessions:(sessions||[]).length,openf1CompletedRounds:openf1Rounds.map((_,i)=>i+1),scheduleRounds:scheduleRounds.length,driverMetadata:(drivers||[]).length,completedCalendarRounds:[...completedSet].sort((a,b)=>a-b)},leakageGuard:"Only completed race weekends are consumed; partial current-weekend sessions are excluded",latestResult,drivers:out});
+    res.status(200).json({build:"f1-history-v2",engine:"1.0",season:2026,throughRound,targetRound,storedCount:storedRows.length,storedThroughRound,historyRounds:races.map(r=>+r.round),supabaseDiagnostic,marketReady,marketOpen,serverNow:new Date(now).toISOString(),lockAt:lockAt?new Date(lockAt).toISOString():null,nextEvent:nextRound?{round:targetRound,name:nextRound.raceName||("Round "+targetRound),firstSession:firstSession?.name||null}:null,sourceStatus:{provider:storedRows.length?"Supabase validated snapshots + upstream fallback":"OpenF1 historical session_result",storedValidatedRounds:storedRows.map(x=>x.round),legacyCompleted:rr.MRData.RaceTable.Races.length,openf1Meetings:(meetings||[]).length,openf1Sessions:(sessions||[]).length,openf1CompletedRounds:openf1Rounds.map((_,i)=>i+1),scheduleRounds:scheduleRounds.length,driverMetadata:(drivers||[]).length,completedCalendarRounds:[...completedSet].sort((a,b)=>a-b)},leakageGuard:"Only completed race weekends are consumed; partial current-weekend sessions are excluded",latestResult,drivers:out});
   }catch(e){res.status(500).json({error:e.message})}
 }
