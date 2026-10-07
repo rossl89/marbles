@@ -148,7 +148,9 @@ module.exports=async function handler(req,res){
       if(ix>=0) allRaces[ix]=race; else allRaces.push(race);
     }
     allRaces.sort((a,b)=>+a.round-+b.round);
-    const storedLoad=await storedF1();\n    const stored=storedLoad.rows;\n    const supabaseDiagnostic=storedLoad.diagnostic;
+    const storedLoad=await storedF1();
+    const stored=storedLoad.rows;
+    const supabaseDiagnostic=storedLoad.diagnostic;
     if(stored.length){
       for(const x of stored){
         const race={round:String(x.round),raceName:x.race_name,date:x.race_date,Circuit:{circuitName:x.circuit||""},Results:(x.race_results||[]).map(y=>({position:String(y.position),number:String(y.number||""),status:y.status||"Finished",Driver:{driverId:canonicalId(y.name,y.number),givenName:String(y.name||"").split(" ").slice(0,-1).join(" "),familyName:String(y.name||"").split(" ").slice(-1)[0]},Constructor:{name:y.team||""}})),AlphaQualifying:x.qualifying_results||[],AlphaSprint:x.sprint_results||[]};
