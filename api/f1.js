@@ -65,10 +65,19 @@ function alphaPayload(a,round){
 async function storedF1(){
   const url=process.env.SUPABASE_URL;
   const key=process.env.SUPABASE_ANON_KEY||process.env.SUPABASE_PUBLISHABLE_KEY;
-  if(!url||!key) return [];
-  const r=await fetch(url+"/rest/v1/f1_result_snapshots?season=eq.2026&validated=eq.true&select=*&order=round.asc",{headers:{apikey:key,Authorization:"Bearer "+key}});
-  if(!r.ok) return [];
-  return r.json();
+  const diagnostic={supabaseConfigured:Boolean(url&&key),supabaseStatus:null,supabaseRows:0};
+  if(!url||!key) return {rows:[],diagnostic};
+  try{
+    const r=await fetch(url+"/rest/v1/f1_result_snapshots?season=eq.2026&validated=eq.true&select=*&order=round.asc",{headers:{apikey:key,Authorization:"Bearer "+key}});
+    diagnostic.supabaseStatus=r.status;
+    if(!r.ok) return {rows:[],diagnostic};
+    const rows=await r.json();
+    diagnostic.supabaseRows=Array.isArray(rows)?rows.length:0;
+    return {rows:Array.isArray(rows)?rows:[],diagnostic};
+  }catch(e){
+    diagnostic.supabaseStatus="FETCH_ERROR";
+    return {rows:[],diagnostic};
+  }
 }
 module.exports=async function handler(req,res){
   try{
@@ -139,7 +148,7 @@ module.exports=async function handler(req,res){
       if(ix>=0) allRaces[ix]=race; else allRaces.push(race);
     }
     allRaces.sort((a,b)=>+a.round-+b.round);
-    const stored=await storedF1();
+    const storedLoad=await storedF1();\n    const stored=storedLoad.rows;\n    const supabaseDiagnostic=storedLoad.diagnostic;
     if(stored.length){
       for(const x of stored){
         const race={round:String(x.round),raceName:x.race_name,date:x.race_date,Circuit:{circuitName:x.circuit||""},Results:(x.race_results||[]).map(y=>({position:String(y.position),number:String(y.number||""),status:y.status||"Finished",Driver:{driverId:canonicalId(y.name,y.number),givenName:String(y.name||"").split(" ").slice(0,-1).join(" "),familyName:String(y.name||"").split(" ").slice(-1)[0]},Constructor:{name:y.team||""}})),AlphaQualifying:x.qualifying_results||[],AlphaSprint:x.sprint_results||[]};
@@ -222,6 +231,6 @@ module.exports=async function handler(req,res){
         status:x.status||""
       }))
     }:null;
-    res.status(200).json({build:"f1-history-v2",engine:"1.0",season:2026,throughRound,targetRound,storedCount:stored.length,storedThroughRound,historyRounds:races.map(r=>+r.round),marketReady,marketOpen,serverNow:new Date(now).toISOString(),lockAt:lockAt?new Date(lockAt).toISOString():null,nextEvent:nextRound?{round:targetRound,name:nextRound.raceName||("Round "+targetRound),firstSession:firstSession?.name||null}:null,sourceStatus:{provider:stored.length?"Supabase validated snapshots + upstream fallback":"OpenF1 historical session_result",storedValidatedRounds:stored.map(x=>x.round),legacyCompleted:rr.MRData.RaceTable.Races.length,openf1Meetings:(meetings||[]).length,openf1Sessions:(sessions||[]).length,openf1CompletedRounds:openf1Rounds.map((_,i)=>i+1),scheduleRounds:scheduleRounds.length,driverMetadata:(drivers||[]).length,completedCalendarRounds:[...completedSet].sort((a,b)=>a-b)},leakageGuard:"Only completed race weekends are consumed; partial current-weekend sessions are excluded",latestResult,drivers:out});
+    res.status(200).json({build:"f1-history-v2",engine:"1.0",season:2026,throughRound,targetRound,storedCount:stored.length,storedThroughRound,historyRounds:races.map(r=>+r.round),supabaseDiagnostic,marketReady,marketOpen,serverNow:new Date(now).toISOString(),lockAt:lockAt?new Date(lockAt).toISOString():null,nextEvent:nextRound?{round:targetRound,name:nextRound.raceName||("Round "+targetRound),firstSession:firstSession?.name||null}:null,sourceStatus:{provider:stored.length?"Supabase validated snapshots + upstream fallback":"OpenF1 historical session_result",storedValidatedRounds:stored.map(x=>x.round),legacyCompleted:rr.MRData.RaceTable.Races.length,openf1Meetings:(meetings||[]).length,openf1Sessions:(sessions||[]).length,openf1CompletedRounds:openf1Rounds.map((_,i)=>i+1),scheduleRounds:scheduleRounds.length,driverMetadata:(drivers||[]).length,completedCalendarRounds:[...completedSet].sort((a,b)=>a-b)},leakageGuard:"Only completed race weekends are consumed; partial current-weekend sessions are excluded",latestResult,drivers:out});
   }catch(e){res.status(500).json({error:e.message})}
 }
