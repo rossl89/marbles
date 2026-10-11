@@ -168,7 +168,7 @@ async function loadServerPicks(){
  const markets=new Map((ms||[]).map(m=>[m.id,m])),scores=new Map((ss||[]).map(x=>[x.pick_id,x]));
  state.picks={};state.drsUsed=ds?.[0]?.used||0;
  for(const p of ps||[]){const m=markets.get(p.market_id),score=scores.get(p.id);const kk=p.market_id===liveF1.marketId?"f1|f1":"past|"+p.market_id;
- state.picks[kk]={eventId:p.market_id,series:"F1",market:m?.name||"Formula 1",num:p.competitor_key,name:p.competitor_name,mult:Number(p.multiplier),overall:p.overall,drs:p.drs,status:m?.status,score:score?Number(score.points):null,raceBase:score?.race_base,sprintBase:score?.sprint_base};}
+ state.picks[kk]={eventId:p.market_id,series:"F1",market:m?.name||"Formula 1",num:p.competitor_key,name:p.competitor_name,mult:Number(p.multiplier),overall:p.overall,drs:p.drs,round:m?.round,season:m?.season,status:m?.status,score:score?Number(score.points):null,raceBase:score?.race_base,sprintBase:score?.sprint_base};}
  render();
 }
 
@@ -179,6 +179,12 @@ function band(x){return x<=1.3?"Favourite":x<=1.42?"Contender":x<=1.55?"Value":"
 function save(){localStorage.setItem("marbles-live-beta",JSON.stringify(state))}
 function summary(){let o=overall();document.getElementById("count").textContent=o.length+" / 3 Overall picks";document.getElementById("drs").textContent=5-drsUsed();const to=document.getElementById("topOverall"),td=document.getElementById("topDrs");if(to)to.textContent=o.length+" / 3";if(td)td.textContent=(5-drsUsed())+" LEFT";document.getElementById("slots").innerHTML=[0,1,2].map((_,i)=>o[i]?'<div class="slot filled"><span class="small">OVERALL '+(i+1)+'</span><b>'+o[i].name+'</b><span class="small">'+o[i].series+' · '+o[i].mult.toFixed(2)+'×</span></div>':'<div class="slot"><span class="small">OVERALL '+(i+1)+'</span><b>Choose a pick</b><span class="small">One per real-world event</span></div>').join("")}
 function entry(kk,x,s){return '<div class="entry '+(s?"sel":"")+'" data-entry="'+kk+'" data-num="'+x[0]+'"><b>#'+x[0]+'</b><div><b>'+x[1]+'</b><div class="small">'+band(x[2])+'</div></div><div><div class="mult">'+x[2].toFixed(2)+'×</div><div class="band">'+band(x[2])+'</div></div></div>'}
+function fantasyResults(r){
+ const base=x=>!x||["Retired","DNS","Disqualified"].includes(x.status)?0:([100,85,72,62,54,47,41,36,31,27,23,19,15,12,9,7,5,3,2,1][Number(x.position)-1]||0);
+ const sprint=new Map((r.sprintResults||[]).map(x=>[String(x.number),x]));
+ return r.results.map(x=>{const multiplier=r.multipliers?.[String(x.number)];const raceBase=base(x),sprintBase=base(sprint.get(String(x.number)))*.5;const own=Object.values(state.picks).find(p=>p.round===r.round&&p.season===2026&&String(p.num)===String(x.number));return {...x,raceBase,sprintBase,multiplier,points:multiplier==null?null:Math.round((raceBase+sprintBase)*multiplier*100)/100,own};}).sort((a,b)=>(b.points??-1)-(a.points??-1)||a.position-b.position);
+}
+function fantasyResultsHTML(r){return '<p class="small">Ranked by weekend fantasy points: (race base + half Sprint base) × pre-weekend multiplier. Ranking excludes DRS; your saved score includes your boost.</p>'+fantasyResults(r).map((x,i)=>'<div class="entry '+(x.own?'sel':'')+'" style="cursor:default"><b>#'+(i+1)+'</b><div><b>'+x.name+'</b>'+(x.own?'<div class="eyebrow">YOUR PICK'+(x.own.overall?' · OVERALL':'')+(x.own.drs?' · DRS':'')+'</div>':'')+'<div class="small">GP P'+x.position+' · '+x.team+'</div><div class="small">('+x.raceBase+' + '+x.sprintBase+') × '+(x.multiplier==null?'pending':x.multiplier.toFixed(3))+'</div>'+(x.own&&x.own.score!=null?'<div class="small" style="color:#ff716c">Your score: '+x.own.score.toFixed(2)+' pts · '+(x.own.mult+(x.own.drs?.3:0)).toFixed(3)+'×</div>':'')+'</div><div class="mult">'+(x.points==null?'—':x.points.toFixed(2))+'<div class="band">PTS</div></div></div>').join('');}
 function render(){
   summary();
   const tiles=document.getElementById("weekendTiles");
@@ -186,7 +192,7 @@ function render(){
   const status=document.getElementById("weekendPickStatus");
   if(status)status.textContent=pickCount+" PICK"+(pickCount===1?"":"S")+" MADE";
   if(tiles){
-    const resultTile=liveF1.latestResult?'<button class="weekendTile '+(activeEvent==="f1-results"?"active":"")+'" data-event-tile="f1-results"><div class="eyebrow">FORMULA 1 · RESULTS</div><h3>'+liveF1.latestResult.raceName+'</h3><div class="small">Official race classification</div><div class="tileBottom"><span class="tileStatus done">RESULTS</span><span>→</span></div></button>':"";
+    const resultTile=liveF1.latestResult?'<button class="weekendTile '+(activeEvent==="f1-results"?"active":"")+'" data-event-tile="f1-results"><div class="eyebrow">FORMULA 1 · RESULTS</div><h3>'+liveF1.latestResult.raceName+'</h3><div class="small">Fantasy points · your pick highlighted</div><div class="tileBottom"><span class="tileStatus done">RESULTS</span><span>→</span></div></button>':"";
     tiles.innerHTML=resultTile+DATA.map(e=>{
     const made=e.markets.filter(m=>state.picks[k(e,m)]).length,total=e.markets.length;
     const isF1=e.id==="f1",locked=isF1&&!liveF1.open;
@@ -200,8 +206,8 @@ function render(){
   if(activeEvent==="f1-results"&&liveF1.latestResult){
     const r=liveF1.latestResult;
     title.textContent="FORMULA 1 · "+r.raceName;
-    meta.textContent="Official race classification";
-    holder.innerHTML='<article class="event"><div class="eventTop"><div><div class="eyebrow">RACE RESULTS</div><h3>'+r.raceName+'</h3><div class="small">'+r.circuit+' · '+r.date+'</div></div><div class="open" style="color:#aeb5be">● RESULTS</div></div><div class="market">'+r.results.map(x=>'<div class="entry"><b>P'+x.position+'</b><div><b>'+x.name+'</b><div class="small">'+x.team+'</div></div><div class="band">'+x.status+'</div></div>').join("")+'</div></article>';
+    meta.textContent="Fantasy points · your pick highlighted";
+    holder.innerHTML='<article class="event"><div class="eventTop"><div><div class="eyebrow">RACE RESULTS</div><h3>'+r.raceName+'</h3><div class="small">'+r.circuit+' · '+r.date+'</div></div><div class="open" style="color:#aeb5be">● RESULTS</div></div><div class="market">'+fantasyResultsHTML(r)+'</div></article>';
     picks();return;
   }
   const e=DATA.find(x=>x.id===activeEvent);if(!e)return;
