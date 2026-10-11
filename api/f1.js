@@ -119,7 +119,9 @@ module.exports=async function handler(req,res){
     const openf1Rounds=[];
     for(const [meetingKey,ss] of sessionGroups){
       const raceSession=ss.find(s=>String(s.session_name).toLowerCase()==="race");
-      if(!raceSession) continue;
+      if(!raceSession || Date.parse(raceSession.date_end||raceSession.date_start)>Date.now()) continue;
+      const calendar=scheduleRounds.find(x=>String(x.date)===String(raceSession.date_start||" ").slice(0,10));
+      if(!calendar) continue;
       const raceRows=await of("session_result?session_key="+raceSession.session_key).catch(()=>[]);
       if(!raceRows?.length) continue;
       const meeting=meetingByKey.get(meetingKey)||{};
@@ -143,13 +145,13 @@ module.exports=async function handler(req,res){
       const mappedRace=raceRows.map(mk).filter(x=>x.position>0);
       const mappedQ=(qRows||[]).map(mk).filter(x=>x.position>0);
       const mappedS=(sRows||[]).map(mk).filter(x=>x.position>0);
-      openf1Rounds.push({date:raceDate,raceName:meetingName,circuit:meetingCircuit,Results:mappedRace,qualifying:mappedQ,sprint:mappedS});
+      openf1Rounds.push({round:+calendar.round,date:calendar.date,raceName:calendar.raceName,circuit:calendar.Circuit?.circuitName||meetingCircuit,Results:mappedRace,qualifying:mappedQ,sprint:mappedS});
 
     }
     // Completed OpenF1 races define their own championship sequence.
     openf1Rounds.sort((a,b)=>Date.parse(a.date)-Date.parse(b.date));
     for(let i=0;i<openf1Rounds.length;i++){
-      const x=openf1Rounds[i], round=i+1;
+      const x=openf1Rounds[i], round=x.round;
       const race={round:String(round),raceName:x.raceName,date:x.date,Circuit:{circuitName:x.circuit},Results:x.Results.map(y=>({position:String(y.position),number:y.number,status:y.status,Driver:{driverId:canonicalId(y.name,y.number),givenName:y.name.split(" ").slice(0,-1).join(" "),familyName:y.name.split(" ").slice(-1)[0]},Constructor:{name:y.team}})),AlphaQualifying:x.qualifying,AlphaSprint:x.sprint};
       const ix=allRaces.findIndex(r=>+r.round===round);
       if(ix>=0) allRaces[ix]=race; else allRaces.push(race);
@@ -207,10 +209,9 @@ module.exports=async function handler(req,res){
     let storedThroughRound=0;
     while(storedByRound.has(storedThroughRound+1)) storedThroughRound++;
     // Validated stored history wins outright when present.
-    const throughRound=storedThroughRound||upstreamThroughRound;
+    const throughRound=upstreamThroughRound;
     const targetRound=throughRound+1;
-    const storedContiguous=storedThroughRound>0;
-    const races=(storedContiguous?storedRows.filter(x=>+x.round<=throughRound).map(x=>({round:String(x.round),raceName:x.race_name,date:x.race_date,Circuit:{circuitName:x.circuit||""},Results:(x.race_results||[]).map(y=>({position:String(y.position),number:String(y.number||""),status:y.status||"Finished",Driver:{driverId:canonicalId(y.name,y.number),givenName:String(y.name||"").split(" ").slice(0,-1).join(" "),familyName:String(y.name||"").split(" ").slice(-1)[0]},Constructor:{name:y.team||""}})),AlphaQualifying:x.qualifying_results||[],AlphaSprint:x.sprint_results||[]})):allRaces.filter(r=>+r.round<=throughRound)).sort((a,b)=>+a.round-+b.round);
+    const races=allRaces.filter(r=>+r.round<=throughRound).sort((a,b)=>+a.round-+b.round);
     const quals=new Map(qq.MRData.RaceTable.Races.filter(r=>+r.round<=throughRound).map(r=>[+r.round,r.QualifyingResults||[]]));
     const H=new Map(), Q=new Map(), S=new Map(), P=new Map(), meta=new Map(), sprintCounts=new Map();
     for(const race of races){
@@ -273,6 +274,7 @@ module.exports=async function handler(req,res){
       raceName:latestRace.raceName,
       circuit:latestRace.Circuit?.circuitName||"",
       date:latestRace.date,
+      sprintResults:latestRace.AlphaSprint||[],
       results:(latestRace.Results||[]).map(x=>({
         position:+x.position,
         number:String(x.number),
@@ -281,6 +283,6 @@ module.exports=async function handler(req,res){
         status:x.status||""
       }))
     }:null;
-    res.status(200).json({build:"f1-history-v2",engine:"1.0",season:2026,throughRound,targetRound,storedCount:rawStoredRows.length,storedThroughRound,historyRounds:races.map(r=>+r.round),supabaseDiagnostic,marketReady,marketOpen,serverNow:new Date(now).toISOString(),lockAt:lockAt?new Date(lockAt).toISOString():null,nextEvent:nextRound?{round:targetRound,name:nextRound.raceName||("Round "+targetRound),firstSession:firstSession?.name||null}:null,sourceStatus:{provider:storedRows.length?"Supabase validated snapshots + upstream fallback":"OpenF1 historical session_result",storedValidatedRounds:rawStoredRows.map(x=>x.round),storedCanonicalRounds:storedRows.map(x=>x.round),sprintCanonicalRounds:canonicalSprintRounds.slice(0,storedSprintPayloads.length).map(x=>+x.round),legacyCompleted:rr.MRData.RaceTable.Races.length,openf1Meetings:(meetings||[]).length,openf1Sessions:(sessions||[]).length,openf1CompletedRounds:openf1Rounds.map((_,i)=>i+1),scheduleRounds:scheduleRounds.length,driverMetadata:(drivers||[]).length,completedCalendarRounds:[...completedSet].sort((a,b)=>a-b)},leakageGuard:"Only completed race weekends are consumed; partial current-weekend sessions are excluded",latestResult,drivers:out});
+    res.status(200).json({build:"f1-history-v3",engine:"1.0",season:2026,throughRound,targetRound,storedCount:rawStoredRows.length,storedThroughRound,historyRounds:races.map(r=>+r.round),supabaseDiagnostic,marketReady,marketOpen,serverNow:new Date(now).toISOString(),lockAt:lockAt?new Date(lockAt).toISOString():null,nextEvent:nextRound?{round:targetRound,name:nextRound.raceName||("Round "+targetRound),firstSession:firstSession?.name||null}:null,sourceStatus:{provider:storedRows.length?"Supabase validated snapshots + upstream fallback":"OpenF1 historical session_result",storedValidatedRounds:rawStoredRows.map(x=>x.round),storedCanonicalRounds:storedRows.map(x=>x.round),sprintCanonicalRounds:canonicalSprintRounds.slice(0,storedSprintPayloads.length).map(x=>+x.round),legacyCompleted:rr.MRData.RaceTable.Races.length,openf1Meetings:(meetings||[]).length,openf1Sessions:(sessions||[]).length,openf1CompletedRounds:openf1Rounds.map(x=>x.round),scheduleRounds:scheduleRounds.length,driverMetadata:(drivers||[]).length,completedCalendarRounds:[...completedSet].sort((a,b)=>a-b)},leakageGuard:"Only completed race weekends are consumed; partial current-weekend sessions are excluded",latestResult,drivers:out});
   }catch(e){res.status(500).json({error:e.message})}
 }
