@@ -216,6 +216,7 @@ module.exports=async function handler(req,res){
     const quals=new Map(qq.MRData.RaceTable.Races.filter(r=>+r.round<=throughRound).map(r=>[+r.round,r.QualifyingResults||[]]));
     const H=new Map(), Q=new Map(), S=new Map(), P=new Map(), meta=new Map(), sprintCounts=new Map();
     for(const race of races){
+      race.FantasyMultipliers={};
       const n=race.Results.length;
       const legacyQ=quals.get(+race.round)||[];
       const q=(race.AlphaQualifying?.length?race.AlphaQualifying.map(x=>({position:String(x.position),number:x.number,Driver:{driverId:canonicalId(x.name,x.number)}})):legacyQ.map(x=>({...x,Driver:{...x.Driver,driverId:canonicalId(x.Driver.givenName+" "+x.Driver.familyName,x.number)}})));
@@ -225,6 +226,7 @@ module.exports=async function handler(req,res){
         const id=canonicalId(x.Driver.givenName+" "+x.Driver.familyName,x.number), rh=H.get(id)||[], qh=Q.get(id)||[];
         // H already contains one weighted observation per completed GP weekend.
         const p=price(rh,qh,P.has(id)?P.get(id):null); P.set(id,p.final);
+        race.FantasyMultipliers[String(x.number)]=+p.final.toFixed(3);
         meta.set(id,{id,number:x.number,name:x.Driver.givenName+" "+x.Driver.familyName,team:x.Constructor?.name||"",...p});
       }
       const sprint=race.AlphaSprint||[], sn=sprint.length;
@@ -276,6 +278,7 @@ module.exports=async function handler(req,res){
       circuit:latestRace.Circuit?.circuitName||"",
       date:latestRace.date,
       sprintResults:latestRace.AlphaSprint||[],
+      multipliers:latestRace.FantasyMultipliers||{},
       results:(latestRace.Results||[]).map(x=>({
         position:+x.position,
         number:String(x.number),
