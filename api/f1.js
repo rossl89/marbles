@@ -116,12 +116,16 @@ module.exports=async function handler(req,res){
       if(s.is_cancelled) continue;
       const a=sessionGroups.get(s.meeting_key)||[]; a.push(s); sessionGroups.set(s.meeting_key,a);
     }
+    const storedLoad=await storedF1();
+    const rawStoredRows=storedLoad.rows;
+    const supabaseDiagnostic=storedLoad.diagnostic;
+
     const openf1Rounds=[];
     for(const [meetingKey,ss] of sessionGroups){
       const raceSession=ss.find(s=>String(s.session_name).toLowerCase()==="race");
       if(!raceSession || Date.parse(raceSession.date_end||raceSession.date_start)>Date.now()) continue;
       const calendar=scheduleRounds.find(x=>String(x.date)===String(raceSession.date_start||" ").slice(0,10));
-      if(!calendar) continue;
+      if(!calendar || rawStoredRows.some(x=>+x.round===+calendar.round&&x.validated)) continue;
       const raceRows=await of("session_result?session_key="+raceSession.session_key).catch(()=>[]);
       if(!raceRows?.length) continue;
       const meeting=meetingByKey.get(meetingKey)||{};
@@ -157,9 +161,6 @@ module.exports=async function handler(req,res){
       if(ix>=0) allRaces[ix]=race; else allRaces.push(race);
     }
     allRaces.sort((a,b)=>+a.round-+b.round);
-    const storedLoad=await storedF1();
-    const rawStoredRows=storedLoad.rows;
-    const supabaseDiagnostic=storedLoad.diagnostic;
 
     // A validated snapshot owns the classifications, but never the championship identity.
     // Resolve every stored race back onto the canonical 2026 calendar by race date first;
