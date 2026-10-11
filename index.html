@@ -91,6 +91,7 @@ body.guestMode .wrap{padding-top:72px}
 .knowledgeFinal p{font-size:18px;line-height:1.6;color:#a2a9b2;max-width:680px;margin:0 auto 28px}
 @media(max-width:700px){.landingHeroSection{position:relative;isolation:isolate;width:auto;max-width:none!important;margin-left:calc(-1 * clamp(22px,4vw,72px));margin-right:calc(-1 * clamp(22px,4vw,72px));padding-left:clamp(22px,4vw,72px)!important;padding-right:clamp(22px,4vw,72px)!important;min-height:calc(100vh - 72px);display:flex;flex-direction:column;justify-content:center}.storyTrack{top:72vh;height:3600px;opacity:.48}.trackShadow{stroke-width:58}.trackKerb,.trackKerbRed{stroke-width:41;stroke-dasharray:11 11}.trackKerbRed{stroke-dashoffset:11}.trackTarmac{stroke-width:33}.knowledgeFinal{padding:85px 8px 105px}.knowledgeFinal p{font-size:16px}}
 .fantasyResult{border-bottom:1px solid var(--line);border-radius:9px;margin:3px 0}.fantasyResult summary{list-style:none;cursor:pointer;border-top:0}.fantasyResult summary::-webkit-details-marker{display:none}.fantasyResult summary:focus-visible{outline:2px solid var(--red);outline-offset:2px}.fantasyResult.yourResult{background:#1a1e24;border:1px solid var(--red);box-shadow:inset 3px 0 var(--red)}.resultBreakdown{padding:5px 16px 16px 62px;color:var(--muted);font-size:12px}.resultBreakdown>div{display:flex;justify-content:space-between;gap:14px;padding:7px 0;border-bottom:1px solid #292e35}.resultBreakdown b{color:var(--text);white-space:nowrap}.resultChevron{display:inline-block;font-size:16px}.fantasyResult[open] .resultChevron{transform:rotate(180deg)}
+.marketMove{display:inline-flex;align-items:center;gap:3px;font-size:11px;font-weight:900;vertical-align:middle;margin-left:5px}.marketMove.up{color:#52d273}.marketMove.down{color:#ff625c}
 </style><script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script></head><body><div class="wrap">
 <header><div class="brand"><img class="brandLogo" src="/marbles-logo-white-transparent.png" alt="MARBLES"></div><div class="small">BETA · 2026</div><div id="account" style="display:flex;gap:8px;align-items:center"><button class="ghost" id="authBtn">SIGN IN</button></div></header>
 <nav><button class="on" data-page="weekend">Weekend</button><button data-page="picks">My Picks</button><button data-page="standings">Standings</button><button data-page="how">How to Play</button></nav>
@@ -179,7 +180,8 @@ const k=(e,m)=>e.id+"|"+m.id, overall=()=>Object.entries(state.picks).filter(([k
 function band(x){return x<=1.3?"Favourite":x<=1.42?"Contender":x<=1.55?"Value":"Outsider"}
 function save(){localStorage.setItem("marbles-live-beta",JSON.stringify(state))}
 function summary(){let o=overall();document.getElementById("count").textContent=o.length+" / 3 Overall picks";document.getElementById("drs").textContent=5-drsUsed();const to=document.getElementById("topOverall"),td=document.getElementById("topDrs");if(to)to.textContent=o.length+" / 3";if(td)td.textContent=(5-drsUsed())+" LEFT";document.getElementById("slots").innerHTML=[0,1,2].map((_,i)=>o[i]?'<div class="slot filled"><span class="small">OVERALL '+(i+1)+'</span><b>'+o[i].name+'</b><span class="small">'+o[i].series+' · '+o[i].mult.toFixed(2)+'×</span></div>':'<div class="slot"><span class="small">OVERALL '+(i+1)+'</span><b>Choose a pick</b><span class="small">One per real-world event</span></div>').join("")}
-function entry(kk,x,s){return '<div class="entry '+(s?"sel":"")+'" data-entry="'+kk+'" data-num="'+x[0]+'"><b>#'+x[0]+'</b><div><b>'+x[1]+'</b><div class="small">'+band(x[2])+'</div></div><div><div class="mult">'+x[2].toFixed(2)+'×</div><div class="band">'+band(x[2])+'</div></div></div>'}
+function marketMovement(number){const change=liveF1.rankChanges?.[String(number)];if(!change)return "";const up=change>0,label=(up?"Up ":"Down ")+Math.abs(change)+" place"+(Math.abs(change)===1?"":"")+" since the previous market";return '<span class="marketMove '+(up?'up':'down')+'" title="'+label+'" aria-label="'+label+'">'+(up?'▲':'▼')+' '+Math.abs(change)+'</span>';}
+function entry(kk,x,s){return '<div class="entry '+(s?"sel":"")+'" data-entry="'+kk+'" data-num="'+x[0]+'"><b>#'+x[0]+'</b><div><b>'+x[1]+'</b> '+(kk==="f1|f1"?marketMovement(x[0]):"")+'<div class="small">'+band(x[2])+'</div></div><div><div class="mult">'+x[2].toFixed(2)+'×</div><div class="band">'+band(x[2])+'</div></div></div>'}
 function fantasyResults(r){
  const base=x=>!x||["Retired","DNS","Disqualified"].includes(x.status)?0:([100,85,72,62,54,47,41,36,31,27,23,19,15,12,9,7,5,3,2,1][Number(x.position)-1]||0);
  const sprint=new Map((r.sprintResults||[]).map(x=>[String(x.number),x]));
@@ -229,6 +231,10 @@ async function loadLiveF1(){
     liveF1.marketId=published?.id||null;
     liveF1.open=liveF1.open&&published?.status==="open";
     market.entries=published?.multipliers?Object.entries(published.multipliers).map(([number,x])=>[String(number),x.name,Number(x.multiplier)]).sort((a,b)=>a[2]-b[2]):d.drivers.map(x=>[String(x.number),x.name,x.multiplier]);
+    const previous=Object.entries(d.latestResult?.multipliers||{}).sort((a,b)=>a[1]-b[1]||Number(a[0])-Number(b[0]));
+    const previousRank=new Map(previous.map(([number],i)=>[String(number),i]));
+    market.entries.sort((a,b)=>a[2]-b[2]||Number(a[0])-Number(b[0]));
+    liveF1.rankChanges=Object.fromEntries(market.entries.map((x,i)=>[String(x[0]),previousRank.has(String(x[0]))?previousRank.get(String(x[0]))-i:0]));
     const nextName=d.nextEvent?.name||("Round "+d.targetRound);
     const lockDate=d.lockAt?new Date(d.lockAt):null;
     const lockText=lockDate&&!Number.isNaN(lockDate.getTime())
