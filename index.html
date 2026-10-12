@@ -306,7 +306,8 @@ let selectedStatsDriver=null,statsLoading=false;
 function statsChart(history,field,color,label){
  const width=600,height=255,left=42,right=16,top=18,bottom=35,plotW=width-left-right,plotH=height-top-bottom;
  const max=field==="rating"?100:Math.max(50,Math.ceil(Math.max(...history.map(x=>x[field]),0)/50)*50);
- const px=i=>left+(history.length<=1?plotW/2:i/(history.length-1)*plotW),py=v=>top+plotH-v/max*plotH;
+ const firstRound=Math.min(...history.map(x=>x.round)),lastRound=Math.max(...history.map(x=>x.round));
+ const px=i=>left+(firstRound===lastRound?plotW/2:(history[i].round-firstRound)/(lastRound-firstRound)*plotW),py=v=>top+plotH-v/max*plotH;
  const grid=Array.from({length:5},(_,i)=>{const v=i*max/4,y=py(v);return '<line x1="'+left+'" x2="'+(width-right)+'" y1="'+y+'" y2="'+y+'" stroke="#29303a"/><text x="'+(left-8)+'" y="'+(y+4)+'" text-anchor="end">'+v+'</text>';}).join("");
  const marks=history.map((x,i)=>'<text x="'+px(i)+'" y="'+(height-12)+'" text-anchor="middle">R'+x.round+'</text>').join("");
  const line=field==="rating"?'<polyline points="'+history.map((x,i)=>px(i)+','+py(x[field])).join(' ')+'" fill="none" stroke="'+color+'" stroke-width="3"/>':"";
