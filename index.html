@@ -268,7 +268,7 @@ async function loadLiveF1(){
         f1Market.querySelectorAll(".actions").forEach(a=>a.innerHTML='<div class="locked" style="grid-column:1/-1">🔒 IN PARC FERMÉ · Picks can no longer be changed server</div>');
       }
     }
-    const note=document.querySelector(".section .small");
+    const note=document.querySelector("#weekend .section .small");
     if(note) note.textContent="Live Scoring Engine "+d.engine+" · 2026 history through Round "+d.throughRound+" · next market Round "+d.targetRound+" · partial current-weekend sessions excluded.";
   }catch(e){console.warn("Live F1 pricing unavailable; retaining prototype fallback",e)}
 }
