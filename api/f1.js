@@ -214,6 +214,8 @@ module.exports=async function handler(req,res){
     const targetRound=throughRound+1;
     const races=allRaces.filter(r=>+r.round<=throughRound).sort((a,b)=>+a.round-+b.round);
     const quals=new Map(qq.MRData.RaceTable.Races.filter(r=>+r.round<=throughRound).map(r=>[+r.round,r.QualifyingResults||[]]));
+    const seasonStats=new Map();
+    const fantasyBase=(x)=>!x||['Retired','DNS','Disqualified'].includes(x.status)?0:([100,85,72,62,54,47,41,36,31,27,23,19,15,12,9,7,5,3,2,1][Number(x.position)-1]||0);
     const H=new Map(), Q=new Map(), S=new Map(), P=new Map(), meta=new Map(), sprintCounts=new Map();
     for(const race of races){
       race.FantasyMultipliers={};race.FantasyRatings={};
@@ -241,12 +243,16 @@ module.exports=async function handler(req,res){
         let weekend=gp;
         if(sx){const sp=finished(sx.status)?perf(+sx.position,sn):.35;weekend=(gp+.5*sp)/1.5;(S.get(id)||S.set(id,[]).get(id)).push(sp);sprintCounts.set(id,(sprintCounts.get(id)||0)+1)}
         h.push(weekend);H.set(id,h);
+        const history=seasonStats.get(id)||[];
+        const multiplier=race.FantasyMultipliers[String(x.number)],raceBase=fantasyBase(x),sprintBase=fantasyBase(sx)*.5;
+        history.push({round:+race.round,event:race.raceName,date:race.date,position:+x.position,status:x.status,rating:race.FantasyRatings[String(x.number)]*100,multiplier,raceBase,sprintBase,points:+((raceBase+sprintBase)*multiplier).toFixed(2)});
+        seasonStats.set(id,history);
       }
       for(const x of q){const id=(x.Driver.givenName||x.Driver.familyName)?canonicalId((x.Driver.givenName||"")+" "+(x.Driver.familyName||""),x.number):x.Driver.driverId,h=Q.get(id)||[];h.push(perf(+x.position,qn));Q.set(id,h)}
     }
     // Calculate the next market only from completed weekends.
     const out=[];
-    for(const [id,m] of meta){const rh=H.get(id)||[];const p=price(rh,Q.get(id)||[],P.get(id));out.push({...m,...p,multiplier:+p.final.toFixed(3),raceHistory:rh.map(x=>+x.toFixed(6)),qualHistory:(Q.get(id)||[]).map(x=>+x.toFixed(6)),sprints:sprintCounts.get(id)||0,races:rh.length,raceObservations:rh.length})}
+    for(const [id,m] of meta){const rh=H.get(id)||[];const p=price(rh,Q.get(id)||[],P.get(id));out.push({...m,...p,multiplier:+p.final.toFixed(3),raceHistory:rh.map(x=>+x.toFixed(6)),qualHistory:(Q.get(id)||[]).map(x=>+x.toFixed(6)),sprints:sprintCounts.get(id)||0,races:rh.length,raceObservations:rh.length,seasonHistory:seasonStats.get(id)||[]})}
     out.sort((a,b)=>a.multiplier-b.multiplier);
     res.setHeader("Cache-Control","no-store, max-age=0");
     const latestRace=races.length?races[races.length-1]:null;
