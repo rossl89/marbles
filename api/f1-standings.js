@@ -1,0 +1,6 @@
+module.exports=async function(req,res){
+ const season=2026;
+ async function get(type){try{const r=await fetch("https://api.jolpi.ca/ergast/f1/"+season+"/"+type+"Standings.json",{signal:AbortSignal.timeout(12000)});if(!r.ok)throw Error();const list=(await r.json()).MRData.StandingsTable.StandingsLists[0];if(!list)throw Error();return {round:Number(list.round),rows:type==="driver"?list.DriverStandings.map(x=>({position:Number(x.position),name:x.Driver.givenName+" "+x.Driver.familyName,number:String(x.Driver.permanentNumber||""),team:x.Constructors.map(t=>t.name).join(" / "),points:Number(x.points),wins:Number(x.wins)})):list.ConstructorStandings.map(x=>({position:Number(x.position),name:x.Constructor.name,points:Number(x.points),wins:Number(x.wins)}))};}catch{return {round:null,rows:[],error:"Standings temporarily unavailable"};}}
+ const [drivers,constructors]=await Promise.all([get("driver"),get("constructor")]);
+ res.setHeader("Cache-Control","public, s-maxage=900, stale-while-revalidate=3600");res.status(200).json({season,source:"Jolpica F1 championship standings",drivers,constructors});
+};
