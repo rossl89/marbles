@@ -207,5 +207,15 @@
     "license": "CC BY-SA 4.0",
     "checked": "2026-10-22",
     "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/2/20/Valtteri_Bottas_at_the_2026_Adelaide_Motorsport_Festival_%28028A7556%29.jpg/330px-Valtteri_Bottas_at_the_2026_Adelaide_Motorsport_Festival_%28028A7556%29.jpg"
+  },
+  {
+    "number": "10",
+    "name": "Pierre Gasly",
+    "image": "https://www.oneracingapp.com/media/driver_images/f1_2026_piegas01_b1_bg0078c1.webp",
+    "url": "https://www.oneracingapp.com/media/driver_images/f1_2026_piegas01_b1_bg0078c1.webp",
+    "author": "Photographer unconfirmed; hosted by OneRacing",
+    "license": "Reuse licence not verified",
+    "status": "user_requested",
+    "checked": "2026-10-24"
   }
 ]
