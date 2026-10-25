@@ -140,15 +140,16 @@ module.exports=async function handler(req,res){
         qSession?of("session_result?session_key="+qSession.session_key).catch(()=>[]):[],
         sprintSession?of("session_result?session_key="+sprintSession.session_key).catch(()=>[]):[]
       ]);
-      const mk=(row)=>{
-        const num=String(row.driver_number);
-        const d=driverByNumber.get(num)||{};
-        const name=d.full_name||d.broadcast_name||("Car "+num);
-        return {position:+row.position||0,number:num,name,team:d.team_name||"",status:row.dsq?"Disqualified":row.dns?"DNS":row.dnf?"Retired":"Finished"};
+      const mapSession=(rows)=>{
+        let fallback=Math.max(0,...rows.map(x=>+x.position||0));
+        return rows.map(row=>{
+          const num=String(row.driver_number),d=driverByNumber.get(num)||{};
+          return {position:+row.position>0?+row.position:++fallback,number:num,name:d.full_name||d.broadcast_name||("Car "+num),team:d.team_name||"",status:row.dsq?"Disqualified":row.dns?"DNS":row.dnf?"Retired":"Finished"};
+        });
       };
-      const mappedRace=raceRows.map(mk).filter(x=>x.position>0);
-      const mappedQ=(qRows||[]).map(mk).filter(x=>x.position>0);
-      const mappedS=(sRows||[]).map(mk).filter(x=>x.position>0);
+      const mappedRace=mapSession(raceRows);
+      const mappedQ=mapSession(qRows||[]);
+      const mappedS=mapSession(sRows||[]);
       openf1Rounds.push({round:+calendar.round,date:calendar.date,raceName:calendar.raceName,circuit:calendar.Circuit?.circuitName||meetingCircuit,Results:mappedRace,qualifying:mappedQ,sprint:mappedS});
 
     }
