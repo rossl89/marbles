@@ -10,7 +10,7 @@ Deno.serve(async req=>{
  const schedule=(await json("https://api.jolpi.ca/ergast/f1/2026.json?limit=100")).MRData.RaceTable.Races;
  const stored=check(await sb.from("f1_result_snapshots").select("round").eq("season",2026).eq("validated",true));
  const have=new Set(stored.map((x:any)=>x.round));
- const missing=schedule.filter((x:any)=>!have.has(+x.round)&&Date.parse(x.date+"T"+(x.time||"00:00:00Z"))+3*3600000<Date.now()).slice(0,2);
+ const missing=schedule.filter((x:any)=>!have.has(+x.round)&&Date.parse(x.date+"T"+(x.time||"00:00:00Z"))<Date.now()).slice(0,2);
  const imported=[];
  if(missing.length){
  const sessions=await json("https://api.openf1.org/v1/sessions?year=2026");
@@ -24,7 +24,8 @@ Deno.serve(async req=>{
  const qq=await json("https://api.openf1.org/v1/session_result?session_key="+q.session_key);
  const sr=sp?await json("https://api.openf1.org/v1/session_result?session_key="+sp.session_key):[];
  const dd=await json("https://api.openf1.org/v1/drivers?session_key="+race.session_key);
- if(rr.length<20||qq.length<19||(ev.Sprint&&sr.length<20))continue;
+ const expected=new Set(dd.map((d:any)=>String(d.driver_number)));
+ if(expected.size<20||rr.length!==expected.size||new Set(rr.map((x:any)=>String(x.driver_number))).size!==expected.size||rr.some((x:any)=>!expected.has(String(x.driver_number)))||qq.length<19||(ev.Sprint&&sr.length!==expected.size))continue;
  const dm=new Map(dd.map((d:any)=>[String(d.driver_number),d]));
  const map=(a:any[])=>{let fallback=Math.max(0,...a.map(x=>+x.position||0));return a.map(x=>{const d:any=dm.get(String(x.driver_number))||{};return {position:+x.position||++fallback,number:String(x.driver_number),name:d.full_name||d.broadcast_name||("Car "+x.driver_number),team:d.team_name||"",status:x.dsq?"Disqualified":x.dns?"DNS":x.dnf?"Retired":"Finished"};}).sort((a,b)=>a.position-b.position);};
  check(await sb.from("f1_result_snapshots").upsert({season:2026,round:+ev.round,race_name:ev.raceName,race_date:ev.date,circuit:ev.Circuit.circuitName,race_results:map(rr),qualifying_results:map(qq),sprint_results:map(sr),source:"OpenF1 complete race qualifying and sprint",source_event_id:String(race.meeting_key),validated:true,updated_at:new Date().toISOString()},{onConflict:"season,round"}));imported.push(+ev.round);
@@ -34,6 +35,7 @@ Deno.serve(async req=>{
  const api=await json("https://marbles-three.vercel.app/api/f1");
  if(api.marketReady&&api.nextEvent&&api.lockAt&&api.drivers?.length){
  const active=new Set((api.latestResult?.results||[]).map((x:any)=>String(x.number)));
+ if(active.size<20)throw Error("Incomplete latest classification; refusing to publish a reduced grid");
  const prices=Object.fromEntries(api.drivers.filter((x:any)=>active.has(String(x.number))).map((x:any)=>[String(x.number),{name:x.name,multiplier:x.multiplier}]));
  check(await sb.from("fantasy_markets").upsert({competition_code:"F1",season:2026,round:api.targetRound,name:api.nextEvent.name,lock_at:api.lockAt,status:api.marketOpen?"open":"locked",multipliers:prices},{onConflict:"competition_code,season,round"}));
  }
