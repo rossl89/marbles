@@ -116,6 +116,7 @@ body.guestMode .wrap{padding-top:72px}
 .playerStandingsControls{display:flex;gap:14px;align-items:end;margin:14px 0}.playerStandingsControls label{display:grid;gap:8px;color:var(--muted);font-size:12px}.playerStandingsControls select{background:#141a22;border:1px solid #3a4655;color:#fff;border-radius:8px;padding:12px;min-width:240px;font:inherit}.playerStandingsSummary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:20px 0}.playerStandingsSummary strong{display:block;font-size:30px;margin-top:8px}.playerStandingsSummary span{font-size:11px;color:var(--muted)}.standingsYou{color:#ff8179;font-size:10px;font-weight:900;margin-left:7px}.competitionTable tr.you{background:#24191b}.competitionTable tr.you td:first-child{border-left:3px solid #ff716c}@media(max-width:600px){.playerStandingsControls{align-items:stretch}.playerStandingsControls label{flex:1;min-width:0}.playerStandingsControls select{width:100%;min-width:0}.playerStandingsSummary{gap:7px}.playerStandingsSummary .card{padding:11px}.playerStandingsSummary strong{font-size:23px}}
 
 .driverAvatar[data-driver="10"] img{width:150%;height:150%;left:-25%;top:0;object-position:50% 0}.driverAvatar.large[data-driver="10"] img{width:125%;height:125%;left:-12.5%;top:0;object-position:50% 0}
+.homeModeActions{display:flex;flex-wrap:wrap;gap:10px;margin:0 0 22px}.homeModeActions .cta{cursor:pointer}#weekend[data-mode="results"] .dashboardSchedule{display:none}#weekend[data-mode="parc"] .dashboardSchedule{border-top:2px solid var(--red)}
 </style><script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script></head><body><div class="wrap">
 <header><div class="brand"><img class="brandLogo" src="/marbles-logo-white-transparent.png" alt="MARBLES"></div><div class="small">BETA · 2026</div><div id="account" style="display:flex;gap:8px;align-items:center"><button class="ghost" id="statsBrowse">COMPETITIONS</button><button class="ghost" id="calendarBrowse">CALENDAR</button><button class="ghost" id="authBtn">SIGN IN</button></div></header>
 <nav><button class="on" data-page="weekend">Weekend</button><details class="competitionsMenu"><summary>Competitions ⌄</summary><div><button data-competition="F1">Formula 1 →</button></div></details><button data-page="calendar">Calendar</button><button data-page="playerstandings">Standings</button><button data-page="picks">My Picks</button><button data-page="how">How to Play</button></nav>
@@ -160,14 +161,14 @@ body.guestMode .wrap{padding-top:72px}
 </section>
 </main><div id="appShell" class="appShell">
 <section id="weekend" class="page on">
-<div class="weekendIntro dashboardIntro"><div><div class="eyebrow">YOUR MOTORSPORT HUB</div><h1>THIS WEEKEND</h1><p>See what’s on, make your pick and catch up on the last race.</p></div><span class="dashboardStatus" id="weekendPickStatus">Loading your picks…</span></div>
-<section class="homeWeekend dashboardSchedule"><div class="homeWeekendHeading"><div><div class="eyebrow">PLAN YOUR VIEWING</div><h2>On track</h2></div><button class="ghost homeCalendarLink">FULL CALENDAR →</button></div><div class="homeWeekendPreview"><div class="small">Loading this weekend’s schedule…</div></div></section>
+<div class="weekendIntro dashboardIntro"><div><div class="eyebrow">YOUR MOTORSPORT HUB</div><h1 id="homeModeTitle">THIS WEEKEND</h1><p id="homeModeDescription">Plan your viewing and make your next pick.</p></div><span class="dashboardStatus" id="weekendPickStatus">Loading your picks…</span></div>
+<div id="homeModeActions" class="homeModeActions"></div><section class="homeWeekend dashboardSchedule"><div class="homeWeekendHeading"><div><div class="eyebrow">PLAN YOUR VIEWING</div><h2>On track</h2></div><button class="ghost homeCalendarLink">FULL CALENDAR →</button></div><div class="homeWeekendPreview"><div class="small">Loading this weekend’s schedule…</div></div></section>
 <section class="dashboardAccount" aria-label="Your picks and season progress">
 <div class="card dashboardPick"><div class="eyebrow">YOUR F1 PICK</div><div id="dashboardPickSummary"><h2>Loading your pick…</h2></div></div>
 <div class="card dashboardPoints"><div class="eyebrow">OVERALL SEASON POINTS</div><strong id="dashboardOverall">0.00</strong><button class="dashboardTextLink" onclick="showPage('picks')">VIEW MY PICKS →</button></div>
 <div class="card dashboardDrs"><div class="eyebrow">DRS BOOSTS LEFT</div><strong><span id="drs">5</span><span class="small"> / 5</span></strong><p class="small">+0.30× on a pick · five per season</p></div>
 </section>
-<section class="dashboardEvents"><div class="dashboardSectionHeading"><div><div class="eyebrow">PLAY & CATCH UP</div><h2>Markets & results</h2></div><p class="small">Open an event to make a pick or view the results.</p></div><div class="weekendTiles" id="weekendTiles"></div></section>
+<section class="dashboardEvents"><div class="dashboardSectionHeading"><div><div class="eyebrow">PLAY & CATCH UP</div><h2 id="homeEventsTitle">Make your pick</h2></div><p class="small">Open an event to make a pick or view the results.</p></div><div class="weekendTiles" id="weekendTiles"></div></section>
 <div class="eventDetailTitle"><div><div class="eyebrow">EVENT DETAILS</div><h2 id="selectedEventTitle">Choose an event</h2><div class="small" id="selectedEventMeta">Open a tile above to make or review your picks.</div></div></div>
 <div class="events" id="events"></div>
 </section>
@@ -215,6 +216,7 @@ async function loadServerPicks(){
 }
 
 const DATA=[{id:"f1",series:"FORMULA 1",event:"Grand Prix",lock:"first official session",markets:[{id:"f1",name:"F1",type:"DRIVER",entries:[["1","Max Verstappen",1.24],["4","Lando Norris",1.31],["81","Oscar Piastri",1.37],["16","Charles Leclerc",1.48],["63","George Russell",1.53],["44","Lewis Hamilton",1.61]]}]}]
+let homeModeKey=null;
 let state=JSON.parse(localStorage.getItem("marbles-live-beta")||'{"picks":{}}'),sel={},liveF1={open:false,ready:false,lockAt:null,latestResult:null},activeEvent=null;
 const k=(e,m)=>e.id+"|"+m.id, overall=()=>Object.entries(state.picks).filter(([key,x])=>key==="f1|f1"&&x.overall).map(([,x])=>x), drsUsed=()=>state.drsUsed??Object.values(state.picks).filter(x=>x.drs).length;
 function band(x){return x<=1.3?"Favourite":x<=1.42?"Contender":x<=1.55?"Value":"Outsider"}
@@ -239,23 +241,59 @@ function fantasyResults(r){
 const expandedResults=new Set();
 function rememberResultExpansion(el){const key=el.dataset.resultKey;if(el.open)expandedResults.add(key);else expandedResults.delete(key);}
 function fantasyResultsHTML(r){return '<p class="small">Weekend totals · Grand Prix + Sprint. Tap a driver for the breakdown.</p>'+fantasyResults(r).map((x,i)=>'<details data-result-key="'+r.round+'|'+x.number+'" ontoggle="rememberResultExpansion(this)" '+(expandedResults.has(r.round+'|'+x.number)?'open ':'')+'class="fantasyResult '+(x.own?'yourResult':'')+'"><summary class="entry"><b>#'+(i+1)+'</b><div>'+driverLabel(x.number,x.name)+(x.own?'<div class="eyebrow">YOUR PICK'+(x.own.overall?' · OVERALL':'')+(x.own.drs?' · DRS':'')+'</div>':'')+'<div class="small">GP P'+x.position+' · '+x.team+'</div>'+(x.own&&x.own.score!=null?'<div class="small" style="color:#ff716c">Your total with '+(x.own.drs?'DRS':'saved multiplier')+': '+x.own.score.toFixed(2)+' pts</div>':'')+'</div><div class="mult">'+(x.points==null?'—':x.points.toFixed(2))+'<div class="band">TOTAL PTS <span class="resultChevron">⌄</span></div></div></summary><div class="resultBreakdown"><div><span>Grand Prix base points</span><b>'+x.raceBase+'</b></div><div><span>Sprint base points · 50% weight</span><b>'+x.sprintBase+'</b></div><div><span>Pre-weekend multiplier</span><b>'+(x.multiplier==null?'Pending':x.multiplier.toFixed(3)+'×')+'</b></div><div><span>Weekend total</span><b>'+(x.points==null?'Pending':x.points.toFixed(2)+' pts')+'</b></div>'+(x.own&&x.own.score!=null?'<div><span>Your saved multiplier'+(x.own.drs?' + DRS':'')+'</span><b>'+x.own.mult.toFixed(3)+'×'+(x.own.drs?' + 0.300×':'')+'</b></div><div><span>Your '+(x.own.overall?'Overall ':'')+'points</span><b>'+x.own.score.toFixed(2)+' pts</b></div>':'')+'</div></details>').join('');}
+
+function homeDay(date){return new Intl.DateTimeFormat("en-CA",{timeZone:"Europe/London",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date(date));}
+function homeShift(day,n){const d=new Date(day+"T12:00:00Z");d.setUTCDate(d.getUTCDate()+n);return d.toISOString().slice(0,10);}
+function homepagePhase(now,events,result,settled,ps){
+ const today=homeDay(now),event=events.find(e=>today>=homeShift(e.date,-2)&&today<=homeShift(e.date,1));
+ if(!event)return {mode:"picks",event:null};
+ const pick=ps.find(p=>p.round===event.round&&p.season===2026);
+ const complete=result?.round===event.round&&settled&&(!pick||pick.score!=null);
+ return {mode:complete?"results":"parc",event};
+}
+function currentHomePhase(){return homepagePhase(new Date(),calData?.events||[],liveF1.latestResult,liveF1.resultSettled,Object.values(state.picks));}
+function homeWatch(){const phase=currentHomePhase();if(!phase.event)return showPage("calendar");calView="week";calMonday=calStart(new Date(phase.event.date+"T12:00:00"));showPage("calendar");renderCalendar();openCalGuide(phase.event.id);}
+function renderHomeMode(){
+ const phase=currentHomePhase(),mode=phase.mode,event=phase.event,result=liveF1.latestResult;
+ document.getElementById("weekend").dataset.mode=mode;
+ const key=mode+"|"+(event?.round||liveF1.nextEvent?.round||liveF1.marketId||"");
+ if(key!==homeModeKey){homeModeKey=key;activeEvent=mode==="results"?"f1-results":mode==="parc"&&result?.round===event?.round?"f1-weekend":"f1";}
+ document.getElementById("homeModeTitle").textContent=mode==="results"?"THE RESULTS ARE IN":mode==="parc"?"PARC FERMÉ":"THIS WEEKEND";
+ document.getElementById("homeModeDescription").textContent=mode==="results"?"Your weekend points are in. See how your pick performed and where you stand.":mode==="parc"?"Follow the weekend, review the driver choices and find the racing to watch.":liveF1.open?"Your next race starts here. Choose a driver and lock your pick before the first session.":"Plan the next race weekend. Picks will open when the next market is ready.";
+ document.getElementById("homeModeActions").innerHTML=mode==="results"?'<button class="cta" onclick="activeEvent=\'f1-results\';render();document.getElementById(\'selectedEventTitle\').scrollIntoView({behavior:\'smooth\'})">SEE WEEKEND RESULTS →</button><button class="cta secondary" onclick="openPlayerStandings(\'F1\')">CHECK MY STANDING →</button>':mode==="parc"?'<button class="cta" onclick="homeWatch()">WHERE TO WATCH →</button><button class="cta secondary" onclick="document.getElementById(\'selectedEventTitle\').scrollIntoView({behavior:\'smooth\'})">REVIEW THE GRID & MY PICK ↓</button>':'<button class="cta" onclick="dashboardOpenMarket()">'+(state.picks["f1|f1"]?'REVIEW MY PICK':liveF1.open?'MAKE MY PICK':'VIEW NEXT MARKET')+' →</button><button class="cta secondary" onclick="showPage(\'calendar\')">PLAN MY VIEWING →</button>';
+ document.getElementById("homeEventsTitle").textContent=mode==="results"?"Weekend results":mode==="parc"?"The weekend grid":"Make your pick";
+ const p=event?Object.values(state.picks).find(p=>p.round===event.round&&p.season===2026):state.picks["f1|f1"];
+ document.getElementById("weekendPickStatus").textContent=mode==="results"?"✓ WEEKEND SCORED":p?"✓ YOUR PICK IS SAVED":mode==="parc"?(liveF1.open?"PICKS STILL OPEN · CHECK DEADLINE":"PICKS LOCKED · FOLLOW THE ACTION"):liveF1.open?"MAKE YOUR WEEKEND PICK":"NEXT MARKET BEING PREPARED";
+ if(event){
+ document.getElementById("dashboardPickSummary").innerHTML=p?'<h2>'+driverLabel(p.num,p.name)+'</h2><p class="small">'+calEscape(event.name)+(p.overall?' · Overall':'')+(p.drs?' · DRS applied':'')+'</p><span class="dashboardSaved">'+(p.score!=null?p.score.toFixed(2)+' WEEKEND POINTS':'✓ Saved · awaiting weekend results')+'</span>':'<h2>No pick saved for this event</h2><p class="small">'+(liveF1.open&&result?.round!==event.round?'There is still time. Open the grid below and check the deadline.':'Follow the racing and come back for the results.')+'</p>';
+ }
+ return phase;
+}
+
 function render(){
   summary();
+  const homePhase=renderHomeMode();
+  if(calData)renderHomeWeekend();
   const tiles=document.getElementById("weekendTiles");
-  const pickCount=state.picks["f1|f1"]?1:0;
-  const status=document.getElementById("weekendPickStatus");
-  if(status)status.textContent=pickCount?"✓ YOUR PICK IS SAVED":liveF1.open?"MAKE YOUR WEEKEND PICK":"F1 MARKET IN PARC FERMÉ";
+  
+
   if(tiles){
     const resultTile=liveF1.latestResult?'<button class="weekendTile '+(activeEvent==="f1-results"?"active":"")+'" data-event-tile="f1-results"><div class="eyebrow">FORMULA 1 · RESULTS</div><h3>'+liveF1.latestResult.raceName+'</h3><div class="small">Fantasy points · your pick highlighted</div><div class="tileBottom"><span class="tileStatus done">RESULTS</span><span>→</span></div></button>':"";
-    tiles.innerHTML=resultTile+DATA.map(e=>{
+    const marketTiles=DATA.map(e=>{
     const made=e.markets.filter(m=>state.picks[k(e,m)]).length,total=e.markets.length;
     const isF1=e.id==="f1",locked=isF1&&!liveF1.open;
     const label=locked?(made?"✓ IN PARC FERMÉ":"🔒 IN PARC FERMÉ"):(made===total?"✓ PICKS MADE":made?made+" / "+total+" PICKS":"MAKE PICKS");
-    return '<button class="weekendTile '+(activeEvent===e.id?"active":"")+'" data-event-tile="'+e.id+'"><div class="eyebrow">'+e.series+'</div><h3>'+gpLabel(e.event)+'</h3><div class="small">'+(locked?"In Parc Fermé · results hub coming next":"Locks "+e.lock)+'</div><div class="tileBottom"><span class="tileStatus '+(made===total||locked?"done":"")+'">'+label+'</span><span>→</span></div></button>'
+    return '<button class="weekendTile '+(activeEvent===e.id?"active":"")+'" data-event-tile="'+e.id+'"><div class="eyebrow">'+e.series+'</div><h3>'+gpLabel(e.event)+'</h3><div class="small">'+(locked?"Picks closed · follow the race weekend":"Locks "+e.lock)+'</div><div class="tileBottom"><span class="tileStatus '+(made===total||locked?"done":"")+'">'+label+'</span><span>→</span></div></button>'
   }).join("");
+    const weekendTile=homePhase.mode==="parc"&&liveF1.latestResult?.round===homePhase.event?.round?'<button class="weekendTile active" data-event-tile="f1-weekend"><div class="eyebrow">THIS RACE WEEKEND</div><h3>'+gpLabel(homePhase.event.name,homePhase.event.country)+'</h3><div class="small">Review the full grid and your saved pick</div><div class="tileBottom"><span class="tileStatus">SCORING BEING CONFIRMED</span><span>→</span></div></button>':"";
+    tiles.innerHTML=homePhase.mode==="results"?resultTile+marketTiles:weekendTile+marketTiles+resultTile;
   }
   document.querySelectorAll("[data-event-tile]").forEach(x=>x.onclick=()=>{activeEvent=x.dataset.eventTile;render();document.getElementById("selectedEventTitle")?.scrollIntoView({behavior:"smooth",block:"start"})});
   const holder=document.getElementById("events"),title=document.getElementById("selectedEventTitle"),meta=document.getElementById("selectedEventMeta");
+  if(activeEvent==="f1-weekend"&&liveF1.latestResult){
+    const r=liveF1.latestResult;title.textContent="FORMULA 1 · "+r.raceName;meta.textContent="Full weekend grid · scoring is being confirmed";
+    holder.innerHTML='<article class="event"><div class="market"><h3>Weekend driver choices</h3>'+r.results.map(x=>{const p=Object.values(state.picks).find(p=>p.round===r.round&&String(p.num)===String(x.number));return '<div class="entry '+(p?'sel':'')+'"><b>#'+x.number+'</b><div>'+driverLabel(x.number,x.name)+(p?'<div class="eyebrow">YOUR SAVED PICK</div>':'')+'</div><div class="mult">'+Number(r.multipliers?.[x.number]||1).toFixed(2)+'×</div></div>';}).join('')+'</div></article>';picks();return;
+  }
   if(!activeEvent){holder.innerHTML='<div class="empty">Choose an event above to make or review your selections.</div>';title.textContent="Choose an event";meta.textContent="Open a tile above to make or review your picks.";picks();return}
   if(activeEvent==="f1-results"&&liveF1.latestResult){
     const r=liveF1.latestResult;
@@ -266,7 +304,7 @@ function render(){
   }
   const e=DATA.find(x=>x.id===activeEvent);if(!e)return;
   title.textContent=e.series+" · "+e.event;meta.textContent="Your full grid and selections";
-  holder.innerHTML='<article class="event"><div class="eventTop"><div><div class="eyebrow">'+e.series+'</div><h3>'+gpLabel(e.event)+'</h3><div class="small">Locks '+e.lock+'</div></div><div class="open">'+(e.id==="f1"&&!liveF1.open?"● IN PARC FERMÉ":"● OPEN")+'</div></div><div class="markets">'+e.markets.map(m=>{let kk=k(e,m),p=state.picks[kk],sn=sel[kk]||m.entries[0][0];return '<div class="market"><div class="eyebrow">'+m.name+' · '+m.type+'</div><h4>'+(p?"Pick locked":"Choose your pick")+'</h4>'+(p?entry(kk,[p.num,p.name,p.mult],true)+'<div class="locked">✓ '+p.name+(p.overall?" · ⭐ OVERALL":"")+(p.drs?" · 🟢 DRS":"")+'</div>':m.entries.map(x=>entry(kk,x,sn===x[0])).join("")+'<div class="actions"><button class="toggle overall" data-k="'+kk+'">⭐ Overall</button><button class="toggle boost" data-k="'+kk+'">🟢 DRS</button><button class="lock" data-k="'+kk+'">LOCK PICK</button></div>')+'</div>'}).join("")+'</div></article>';
+  holder.innerHTML='<article class="event"><div class="eventTop"><div><div class="eyebrow">'+e.series+'</div><h3>'+gpLabel(e.event)+'</h3><div class="small">Locks '+e.lock+'</div></div><div class="open">'+(e.id==="f1"&&!liveF1.open?"● IN PARC FERMÉ":"● OPEN")+'</div></div><div class="markets">'+e.markets.map(m=>{let kk=k(e,m),p=state.picks[kk],sn=sel[kk]||m.entries[0][0];return '<div class="market"><div class="eyebrow">'+m.name+' · '+m.type+'</div><h4>'+(p?"Pick locked":"Choose your pick")+'</h4>'+(p?m.entries.map(x=>entry(kk,x,String(x[0])===String(p.num))).join('')+'<div class="locked">✓ '+p.name+(p.overall?" · ⭐ OVERALL":"")+(p.drs?" · 🟢 DRS":"")+'</div>':m.entries.map(x=>entry(kk,x,sn===x[0])).join("")+(e.id==='f1'&&!liveF1.open?'<div class="locked">Picks are locked. Follow the action and return for your results.</div>':'<div class="actions"><button class="toggle overall" data-k="'+kk+'">⭐ Overall</button><button class="toggle boost" data-k="'+kk+'">🟢 DRS</button><button class="lock" data-k="'+kk+'">LOCK PICK</button></div>'))+'</div>'}).join("")+'</div></article>';
   bind();picks()
 }
 function find(kk){for(let e of DATA)for(let m of e.markets)if(k(e,m)===kk)return[e,m]}
@@ -278,7 +316,9 @@ async function loadLiveF1(){
     const r=await fetch("/api/f1"); if(!r.ok) throw new Error("HTTP "+r.status);
     const d=await r.json(), ev=DATA.find(x=>x.id==="f1"), market=ev.markets[0];
     liveF1={open:!!d.marketOpen,ready:!!d.marketReady,lockAt:d.lockAt,latestResult:d.latestResult||null,drivers:d.drivers||[],nextEvent:d.nextEvent||null};
-    const {data:published}=await sb.from("fantasy_markets").select("*").eq("competition_code","F1").eq("season",2026).eq("round",d.targetRound).maybeSingle();
+    const {data:publishedMarkets}=await sb.from("fantasy_markets").select("*").eq("competition_code","F1").eq("season",2026);
+    const published=publishedMarkets?.find(m=>m.round===d.targetRound);
+    liveF1.resultSettled=publishedMarkets?.find(m=>m.round===d.latestResult?.round)?.status==="settled";
     liveF1.marketId=published?.id||null;
     liveF1.open=liveF1.open&&published?.status==="open";
     market.entries=published?.multipliers?Object.entries(published.multipliers).map(([number,x])=>[String(number),x.name,Number(x.multiplier)]).sort((a,b)=>a[2]-b[2]):d.drivers.map(x=>[String(x.number),x.name,x.multiplier]);
@@ -307,8 +347,8 @@ async function loadLiveF1(){
     const f1Event=f1Market?.closest(".event");
     if(f1Event){
       const badge=f1Event.querySelector(".open");
-      if(badge){badge.textContent=d.marketOpen?"● OPEN":"● IN PARC FERMÉ";badge.style.color=d.marketOpen?"#ff6d68":"#9299a3"}
-      if(!d.marketOpen && f1Market){
+      if(badge){badge.textContent=liveF1.open?"● OPEN":"● IN PARC FERMÉ";badge.style.color=liveF1.open?"#ff6d68":"#9299a3"}
+      if(!liveF1.open && f1Market){
         f1Market.querySelectorAll(".actions").forEach(a=>a.innerHTML='<div class="locked" style="grid-column:1/-1">🔒 IN PARC FERMÉ · Picks can no longer be changed server</div>');
       }
     }
@@ -399,14 +439,15 @@ function homeWeekendEvents(events,now=new Date()){
 }
 function renderHomeWeekend(){
  if(!calData)return;const now=new Date(),monday=calStart(now),sunday=new Date(monday);sunday.setDate(sunday.getDate()+6);
- const first=calKey(monday),last=calKey(sunday),events=homeWeekendEvents(calData.events,now),next=calData.events.find(e=>Date.parse(e.sessions.find(x=>x.id==="Race")?.start||e.date+"T23:59:59Z")+10800000>now.getTime());
+ const phase=currentHomePhase();
+ const first=phase.event?.startDate||calKey(monday),last=phase.event?.date||calKey(sunday),events=phase.event?[phase.event]:homeWeekendEvents(calData.events,now),next=calData.events.find(e=>Date.parse(e.sessions.find(x=>x.id==="Race")?.start||e.date+"T23:59:59Z")+10800000>now.getTime());
  let html=events.map(e=>{const sessions=e.sessions.filter(x=>{const key=x.start?calKey(x.start):x.date;return key>=first&&key<=last;}),days=new Map();for(const x of sessions){const key=x.start?calKey(x.start):x.date;if(!days.has(key))days.set(key,[]);days.get(key).push(x);}
  return '<article class="homeWeekendCard"><div class="homeWeekendInfo"><div class="eyebrow">'+calEscape(e.seriesName)+' · ROUND '+e.round+'</div><h3>'+gpLabel(e.name,e.country)+'</h3><div class="small">'+calEscape(e.circuit)+'</div>'+(e.sprint?'<span class="calTag">SPRINT WEEKEND</span>':'')+'<div class="small" style="margin-top:12px">'+calDate(e.startDate+"T12:00:00",{day:"numeric",month:"short"})+' – '+calDate(e.date+"T12:00:00",{day:"numeric",month:"short"})+'</div></div><div class="homeWeekendDays">'+[...days].map(([day,ss])=>'<div class="homeWeekendDay"><strong>'+calDate(day+"T12:00:00",{weekday:"long",day:"numeric"})+'</strong>'+ss.map(x=>'<div class="homeSession '+(x.id==="Race"?'race':'')+'"><span>'+calEscape(x.name)+'</span><time>'+(x.start?calDate(x.start,{hour:"2-digit",minute:"2-digit"}):'TBC')+'</time></div>').join('')+'</div>').join('')+'</div></article>';}).join('');
  if(!events.length)html='<div class="homeWeekendEmpty">No F1 racing this weekend.'+(next?'<br><b>Next up: '+gpLabel(next.name,next.country)+'</b> · '+calDate(next.date+"T12:00:00",{day:"numeric",month:"long"}):' Check the full calendar for upcoming events.')+'</div>';
  html+='<div class="homeWeekendNote"><span>Times: '+Intl.DateTimeFormat().resolvedOptions().timeZone.replaceAll("_"," ")+'</span><span>Open the full calendar for tickets & where to watch.</span></div>';
  document.querySelectorAll(".homeWeekendPreview").forEach(el=>el.innerHTML=html);
 }
-async function loadHomeWeekend(){try{await loadCalendar();if(calData)renderHomeWeekend();else throw Error();}catch{document.querySelectorAll(".homeWeekendPreview").forEach(el=>el.innerHTML='<div class="homeWeekendEmpty">Schedule temporarily unavailable. Open the full calendar to try again.</div>');}}
+async function loadHomeWeekend(){try{await loadCalendar();if(calData){renderHomeWeekend();render();}else throw Error();}catch{document.querySelectorAll(".homeWeekendPreview").forEach(el=>el.innerHTML='<div class="homeWeekendEmpty">Schedule temporarily unavailable. Open the full calendar to try again.</div>');}}
 document.querySelectorAll(".homeCalendarLink").forEach(b=>b.onclick=()=>{calView="week";calMonday=calStart(new Date());showPage("calendar");});
 loadHomeWeekend();
 
