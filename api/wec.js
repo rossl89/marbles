@@ -11,6 +11,16 @@ function flatten(x,out=[]){if(x&&typeof x==='object'){if(x.url)out.push(x.url);f
 function enrich(data){const histories=new Map(),previous=new Map(),stats=new Map();for(const race of data.history.sort((a,b)=>a.round-b.round)){race.multipliers={};for(const c of ['Hypercar','LMGT3']){const group=race.results.filter(x=>x.class===c);for(const x of group){const key=c+'|'+x.number,h=histories.get(key)||[],p=price(h,previous.get(key)),points=+((x.status==='Finished'?(BASE[x.position-1]||0):0)*p.multiplier).toFixed(2);race.multipliers[key]=p.multiplier;const hs=stats.get(key)||[];hs.push({round:race.round,event:race.event,date:race.date,position:x.position,status:x.status,rating:p.rating*100,multiplier:p.multiplier,points});stats.set(key,hs);h.push(x.status==='Finished'?1-(x.position-1)/Math.max(1,group.length-1):.35);histories.set(key,h);previous.set(key,p.multiplier);}}}
  data.entries=data.entries.map(e=>{const key=e.class+'|'+e.number,h=histories.get(key)||[],p=price(h,previous.get(key));return {...e,...p,competitionCode:code(e.class),seasonHistory:stats.get(key)||[]};});
  const last=data.history.at(-1);data.latestResult=last||null;data.nextEvent=data.events.find(e=>e.round>(last?.round||0))||null;data.lockAt=data.nextEvent?.sessions.map(s=>s.start).filter(Boolean).sort((a,b)=>Date.parse(a)-Date.parse(b))[0]||null;data.marketOpen=!!data.lockAt&&Date.now()<Date.parse(data.lockAt);data.source='FIA WEC calendar and entry list · Al Kamel classifications';data.ratingMethod='Completed class results: 50% season form + 50% last three races. Each race counts once, including Le Mans. No championship-points weighting.';return data;}
+
+function textHTML(s){return s.replace(/<[^>]*>/g,' ').replace(/&nbsp;/g,' ').replace(/&amp;/g,'&').replace(/&quot;/g,'"').replace(/&#(?:x([0-9a-f]+)|(\d+));/gi,(_,h,n)=>String.fromCodePoint(parseInt(h||n,h?16:10))).replace(/\s+/g,' ').trim();}
+function championshipHTML(html){
+ const race=Number(html.match(/&quot;raceId&quot;:(\d+)/)?.[1]),round=({4948:1,4949:2,4951:3,4952:4,4953:5,4954:6,5065:7,5066:8})[race];
+ const tables=[...html.matchAll(/<table\b[\s\S]*?<\/table>/g)].map(([t])=>[...t.matchAll(/<tr\b[\s\S]*?<\/tr>/g)].map(([r])=>[...r.matchAll(/<t[dh]\b[^>]*>([\s\S]*?)<\/t[dh]>/g)].map(x=>textHTML(x[1]))).filter(x=>/^\d+$/.test(x[0])));
+ if(!round||tables.length<3||tables[0].length<8||tables[1].length<17||tables[2].length<18)throw Error('Incomplete championship standings');
+ const rows=t=>t.map(r=>({position:+r[0],number:r[2].replace('#',''),name:r[3],points:+r.at(-1)}));
+ return {afterRound:round,source:'https://www.fiawec.com/en/page/manufacturers-classification',manufacturers:tables[0].map(r=>({position:+r[0],name:r[1],points:+r.at(-1)})),Hypercar:rows(tables[1]),LMGT3:rows(tables[2])};
+}
+
 let cache=null,expires=0;
 async function build(){const data=JSON.parse(JSON.stringify(saved));data.stale=false;try{
  const paths=flatten(await get('https://files.alkamelcloud.com/wec/manifests/results_15_2026.json'));
@@ -20,6 +30,7 @@ async function build(){const data=JSON.parse(JSON.stringify(saved));data.stale=f
  data.history.push({round:ev.round,date:ev.date,event:ev.name,source,results});
  }
  }catch(e){data.stale=true;data.feedMessage='Showing the last verified classifications while the timing feed is unavailable.';}
+ try{const live=championshipHTML(await get('https://www.fiawec.com/en/page/manufacturers-classification',false));if(live.afterRound>=data.championship.afterRound&&live.afterRound<=Math.max(...data.history.map(h=>h.round)))data.championship=live;}catch(e){data.championshipStale=true;}
  return enrich(data);}
 module.exports=async function(req,res){try{if(!cache||Date.now()>expires){cache=await build();expires=Date.now()+60000;}res.setHeader('Cache-Control','no-store');res.status(200).json(cache);}catch(e){res.status(503).json({error:'WEC data temporarily unavailable'});}};
-module.exports._test={csv,normalize,enrich,price};
+module.exports._test={csv,normalize,enrich,price,championshipHTML};
