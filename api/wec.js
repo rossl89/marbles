@@ -1,0 +1,25 @@
+// Class-specific car-entry ratings and fantasy scoring. No in-progress sessions are consumed.
+const saved=require('../data/wec-2026.json');
+const BASE=[100,85,72,62,54,47,41,36,31,27,23,19,15,12,9,7,5,3,2,1];
+const code=c=>c==='Hypercar'?'WEC-HYPERCAR':'WEC-LMGT3';
+const mean=a=>a.length?a.reduce((s,x)=>s+x,0)/a.length:.5;
+function price(h,prev){const rating=h.length?.5*mean(h)+.5*mean(h.slice(-3)):.5,consistency=Math.max(0,1-2*Math.sqrt(mean(h.map(x=>(x-mean(h))**2)))),confidence=.6*Math.min(h.length/6,1)+.4*consistency,target=1.5+((2-rating)-1.5)*confidence;return {rating,multiplier:+(prev==null?1.5:Math.max(1,Math.min(2,Math.max(prev-.15,Math.min(prev+.15,target))))).toFixed(3)};}
+function csv(text){const rows=[];let row=[],cell='',quoted=false;for(let i=0;i<text.length;i++){const c=text[i];if(c==='"'){if(quoted&&text[i+1]==='"'){cell+='"';i++;}else quoted=!quoted;}else if(!quoted&&(c===';'||c==='\n')){row.push(cell.replace(/\r$/,''));cell='';if(c==='\n'){rows.push(row);row=[];}}else cell+=c;}if(cell||row.length){row.push(cell);rows.push(row);}const headers=rows.shift().map(x=>x.replace(/^\uFEFF/,''));return rows.filter(x=>x[0]).map(r=>Object.fromEntries(headers.map((h,i)=>[h,r[i]||''])));}
+function normalize(rows){return ['HYPERCAR','LMGT3'].flatMap(c=>rows.filter(x=>x.CLASS?.toUpperCase()===c).map((x,i)=>({class:c==='HYPERCAR'?'Hypercar':c,number:String(x.NUMBER),name:x.TEAM,team:x.TEAM,car:x.VEHICLE,drivers:[1,2,3,4].map(n=>x['DRIVER_'+n]).filter(Boolean),position:i+1,status:x.STATUS==='Classified'?'Finished':x.STATUS==='Disqualified'?'Disqualified':'Retired',laps:+x.LAPS||0})));}
+async function get(url,json=true){const r=await fetch(url,{signal:AbortSignal.timeout(12000)});if(!r.ok)throw Error('WEC feed HTTP '+r.status);return json?r.json():r.text();}
+function flatten(x,out=[]){if(x&&typeof x==='object'){if(x.url)out.push(x.url);for(const v of Object.values(x))if(typeof v==='object')flatten(v,out);}return out;}
+function enrich(data){const histories=new Map(),previous=new Map(),stats=new Map();for(const race of data.history.sort((a,b)=>a.round-b.round)){race.multipliers={};for(const c of ['Hypercar','LMGT3']){const group=race.results.filter(x=>x.class===c);for(const x of group){const key=c+'|'+x.number,h=histories.get(key)||[],p=price(h,previous.get(key)),points=+((x.status==='Finished'?(BASE[x.position-1]||0):0)*p.multiplier).toFixed(2);race.multipliers[key]=p.multiplier;const hs=stats.get(key)||[];hs.push({round:race.round,event:race.event,date:race.date,position:x.position,status:x.status,rating:p.rating*100,multiplier:p.multiplier,points});stats.set(key,hs);h.push(x.status==='Finished'?1-(x.position-1)/Math.max(1,group.length-1):.35);histories.set(key,h);previous.set(key,p.multiplier);}}}
+ data.entries=data.entries.map(e=>{const key=e.class+'|'+e.number,h=histories.get(key)||[],p=price(h,previous.get(key));return {...e,...p,competitionCode:code(e.class),seasonHistory:stats.get(key)||[]};});
+ const last=data.history.at(-1);data.latestResult=last||null;data.nextEvent=data.events.find(e=>e.round>(last?.round||0))||null;data.lockAt=data.nextEvent?.sessions.map(s=>s.start).filter(Boolean).sort((a,b)=>Date.parse(a)-Date.parse(b))[0]||null;data.marketOpen=!!data.lockAt&&Date.now()<Date.parse(data.lockAt);data.source='FIA WEC calendar and entry list · Al Kamel classifications';data.ratingMethod='Completed class results: 50% season form + 50% last three races. Each race counts once, including Le Mans. No championship-points weighting.';return data;}
+let cache=null,expires=0;
+async function build(){const data=JSON.parse(JSON.stringify(saved));data.stale=false;try{
+ const paths=flatten(await get('https://files.alkamelcloud.com/wec/manifests/results_15_2026.json'));
+ for(const ev of data.events.filter(e=>!data.history.some(h=>h.round===e.round))){const race=ev.sessions.find(s=>s.id==='Race');if(!race?.start||Date.parse(race.start)+ev.durationHours*3600000>Date.now())continue;
+ const candidates=paths.filter(u=>u.includes('/0'+ev.round+'_')&&/\/\d+_FIA WEC\//.test(u)&&new RegExp('/03_Classification_Race_Hour '+ev.durationHours+'_Final\\.CSV$','i').test(u));if(!candidates.length)continue;
+ const source='https://files.alkamelcloud.com/'+candidates.at(-1),results=normalize(csv(await get(encodeURI(source),false)));const keys=new Set(results.map(x=>x.class+'|'+x.number));if(keys.size!==results.length||data.entries.some(e=>!keys.has(e.class+'|'+e.number)))throw Error('Incomplete WEC final classification');
+ data.history.push({round:ev.round,date:ev.date,event:ev.name,source,results});
+ }
+ }catch(e){data.stale=true;data.feedMessage='Showing the last verified classifications while the timing feed is unavailable.';}
+ return enrich(data);}
+module.exports=async function(req,res){try{if(!cache||Date.now()>expires){cache=await build();expires=Date.now()+60000;}res.setHeader('Cache-Control','no-store');res.status(200).json(cache);}catch(e){res.status(503).json({error:'WEC data temporarily unavailable'});}};
+module.exports._test={csv,normalize,enrich,price};
